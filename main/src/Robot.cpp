@@ -252,7 +252,7 @@ public:
 	void AutonomousPeriodic() {
 		if(delayTimer->Get() > autoDelay) {
 			switch(autoMode) {
-			case 1: //deploy cubes on sides of switch
+			case 1: //start from centre, deploy cubes on sides of switch
 				switch(plateColour[0]) {
 				case 'L':
 					switch(autoState) {
@@ -265,8 +265,9 @@ public:
 							autoState++;
 						break;
 					case 2:
-						m_lowerIntakeL->SetSpeed(-1.f);
-						m_lowerIntakeR->SetSpeed(1.f);
+						m_conveyor->Set(1.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
 						break;
 					}
 					break;
@@ -281,8 +282,9 @@ public:
 							autoState++;
 						break;
 					case 2:
-						m_lowerIntakeL->SetSpeed(-1.f);
-						m_lowerIntakeR->SetSpeed(1.f);
+						m_conveyor->Set(1.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
 						break;
 					}
 					break;
@@ -329,7 +331,7 @@ public:
 					case 2:
 						m_lowerIntakeL->SetSpeed(-1.f);
 						m_lowerIntakeR->SetSpeed(1.f);
-						BBYCAKES->initPath(path_backupRight, PathBackward, 180);
+						BBYCAKES->initPath(path_backupRight, PathBackward, -180);
 						if(autoTimer->Get() > 2.5)
 							autoState++;
 						break;
@@ -353,6 +355,9 @@ public:
 					}
 					break;
 				case 2:
+					m_conveyor->SetSpeed(1.f);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
 					break;
 				}
 				break;
