@@ -25,30 +25,25 @@
 class Robot: public frc::IterativeRobot {
 public:
 
-	Joystick *m_Joystick; // The place where you define your variables
+	//declare class members/variables
+
+	Joystick *m_Joystick;
 	Joystick *m_Joystick2;
 
-	VictorSP *m_LFMotor; // ^
-	VictorSP *m_LBMotor; // ^
-	VictorSP *m_RFMotor; // ^
-	VictorSP *m_RBMotor; // ^
-	VictorSP *m_lowerIntakeL; // left lower intake wheel
-	VictorSP *m_lowerIntakeR; // right lower intake wheel
+	VictorSP *m_LFMotor, *m_LBMotor, *m_RFMotor, *m_RBMotor;
+	VictorSP *m_lowerIntakeL, *m_lowerIntakeR;
 	VictorSP *m_conveyor;
+
+	TalonSRX *m_upperIntakeL, *m_upperIntakeR;
+	TalonSRX *m_climber1, *m_climber2;
 
 	Solenoid *m_shiftHigh;
 	Solenoid *m_shiftLow;
-//	int driveState;
-	int autoState, autoMode, autoDelay;
-	//Talon
 
-#ifdef AUX_PWM
-	VictorSP *m_elevatorPWM;
-#else
-	TalonSRX *m_elevatorCAN;
-#endif
+	int autoState, autoMode, autoDelay, driveState, cheezyState;
 
-	XboxController *m_Gamepad;
+	XboxController *m_GamepadOp;
+	XboxController *m_GamepadDr;
 
 	Solenoid *m_testExtend;
 	Solenoid *m_testRetract;
@@ -64,6 +59,14 @@ public:
 	Path *p_step_two;
 	Path *p_step_three;
 
+	AHRS *nav;
+
+	std::string plateColour;
+
+	Timer *autoTimer;
+	Timer *delayTimer;
+	Timer *triggerTimer;
+
 	//====================Pathfollow Variables==================
 	PathFollower *BBYCAKES;
 
@@ -75,13 +78,6 @@ public:
 	Path *path_sideVeerLeft, *path_sideVeerRight, *path_sideCrossLeft, *path_sideCrossRight;
 	//drive straight, drop cube if your side
 	Path *path_, *path_autoThreeSwitchStraight3;
-
-	AHRS *nav;
-
-	std::string plateColour;
-
-	Timer *autoTimer;
-	Timer *delayTimer;
 
 /*	static void VisionThread()
     {
@@ -112,24 +108,24 @@ public:
 
 		m_lowerIntakeL = new VictorSP(1); // left intake
 		m_lowerIntakeR = new VictorSP(2); // right intake
+
 		m_conveyor = new VictorSP(0);
+		m_upperIntakeL = new TalonSRX(1);
+		m_upperIntakeR = new TalonSRX(2);
+
+		m_climber1 = new TalonSRX(3);
+		m_climber2 = new TalonSRX(4);
 
 		m_Joystick = new Joystick(0); // ^
 		m_Joystick2 = new Joystick(1);// ^
 
-		m_Gamepad = new XboxController(2);
+		m_GamepadOp = new XboxController(2);
+		m_GamepadDr = new XboxController(3);
 
 		m_shiftHigh = new Solenoid(0);
 		m_shiftLow = new Solenoid(1);
 		m_testExtend = new Solenoid(2);
 		m_testRetract = new Solenoid(3);
-
-#ifdef AUX_PWM
-		m_elevatorPWM = new VictorSP(6);
-#else
-		m_elevatorCAN = new TalonSRX(1);
-		m_elevatorCAN->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 1000);
-#endif
 
 		autoTimer = new Timer();
 		autoTimer->Reset();
@@ -138,6 +134,10 @@ public:
 		delayTimer = new Timer();
 		delayTimer->Reset();
 		delayTimer->Stop();
+
+		triggerTimer = new Timer();
+		triggerTimer->Reset();
+		triggerTimer->Stop();
 
 		//================Define Auto Paths===============
 		int zero[2] = {0, 0};
@@ -181,7 +181,8 @@ public:
 /*		std::thread visionThread(VisionThread);
 		visionThread.detach();*/
 
-//		driveState = 7;
+		driveState = 1;
+		cheezyState = 1;
 		autoMode = 0;
 		autoState = 0;
 		autoDelay = 0;
@@ -198,20 +199,11 @@ public:
 
 		BBYCAKES = new PathFollower(500, PI/3, m_drivePID, m_turnPID, m_finalTurnPID);
 		BBYCAKES->setIsDegrees(true);
-
-		int step_one[2] = {-5000, 0};
-		int step_two[2] = {0, -2887};
-		int end[2] = {-5000, -2887};
-
-		p_step_one = new PathLine(zero, step_one, 10);
-		p_step_two = new PathLine(step_one, step_two, 10);
-		p_step_three = new PathLine(step_two, end, 10);
 	}
 
 	void DisabledPeriodic() {
 		long long int LRead = m_leftEncoder->Get();
 		long long int RRead = m_rightEncoder->Get();
-		long long int ERead = m_elevatorCAN->GetSelectedSensorPosition(0);
 		long double GRead = nav->GetYaw();
 		for(int i = 1; i <= 12; i++) {
 			if(m_Joystick->GetRawButton(i))	{
@@ -219,12 +211,26 @@ public:
 				nav->Reset();
 				m_leftEncoder->Reset();
 				m_rightEncoder->Reset();
-				m_elevatorCAN->SetSelectedSensorPosition(0, 0, 10);
+				triggerTimer->Start();
+				if(triggerTimer->Get() > 4.f)
+					driveState = 1;
+			}
+			else {
+				triggerTimer->Reset();
+				triggerTimer->Stop();
 			}
 		}
-		autoDelay = m_Joystick->GetRawAxis()
+		for(int i = 1; i <= 2; i++) {
+			if(m_GamepadDr->GetRawButton(i))
+				cheezyState = i;
+		}
+		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kLeftHand)) {
+			driveState = 2;
+		}
+		autoDelay = m_Joystick->GetRawAxis(4);
 		DriverStation::ReportError("Left Encoder: " + std::to_string(LRead) + " | Right Encoder: " + std::to_string(RRead) + " | Gyro: " + std::to_string(GRead));
-		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Elevator Pos: " + std::to_string(ERead));
+		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Auto Delay: " + std::to_string(autoDelay));
+		DriverStation::ReportError("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
 	}
 
 	void AutonomousInit() override {
@@ -334,11 +340,22 @@ public:
 					break;
 				}
 				break;
-			case 3: //
+			case 3: //drive forward from right side, deploy cube if corresponding side
 				switch(autoState) {
 				case 0:
 					BBYCAKES->initPath(path_sideVeerLeft, PathForward, -90);
+					autoState++;
+					break;
+				case 1:
+					if(advancedAutoDrive()) {
+						if(plateColour[0] == 'R')
+							autoState++;
+					}
+					break;
+				case 2:
+					break;
 				}
+				break;
 			}
 		}
 	}
@@ -353,24 +370,19 @@ public:
 	}
 
 	void TeleopPeriodic() {
-		driveShift();
-	//	simpleElev();
-		advancedElev();
-//		switch(driveState) {
-//		case 7:
-		arcadeDrive();
-/*			break;
-		case 8:
-			tankDrive();
+		switch(driveState) {
+		case 1:
+			arcadeDrive();
+			arcadeShift();
 			break;
-		case 9:
+		case 2:
 			cheezyDrive();
-			break;
-		}*/
-		simpleIntake();
+
+		}
+		lowerIntake();
 	}
 
-	void driveShift() {
+	void arcadeShift() {
 		if(m_Joystick->GetRawButton(1)) {
 			m_shiftHigh->Set(true);
 			m_shiftLow->Set(false);
@@ -381,20 +393,8 @@ public:
 		}
 	}
 
-	void simpleElev() {
-		float elevSpeed = 0.65*limit(m_Gamepad->GetRawAxis(1));
-#ifdef AUX_PWM
-		m_elevatorPWM->Set(limit(-elevSpeed));
-#else
-		m_elevatorCAN->Set(ControlMode::PercentOutput, limit(-elevSpeed + 0.1));
-#endif
-	}
+	void cheezyShift() {
 
-	void advancedElev() {
-		if(m_Joystick->GetRawButton(12))
-			m_elevatorCAN->Set(ControlMode::Position, -3000);
-		else if(m_Joystick->GetRawButton(11))
-			m_elevatorCAN->Set(ControlMode::Position, 0);
 	}
 
 	bool advancedAutoDrive() {
@@ -424,39 +424,42 @@ public:
 		m_RBMotor->SetSpeed(joyY + joyX);
 	}
 
-	void tankDrive() {
-		float joy1Y;
-		float joy2Y;
-
-		joy1Y = -limit(expo(m_Joystick->GetY(), 2));
-		joy2Y = -limit(expo(m_Joystick2->GetY(), 2));
-
-		m_LFMotor->SetSpeed(-joy1Y);
-		m_LBMotor->SetSpeed(-joy1Y);
-		m_RFMotor->SetSpeed(joy2Y);
-		m_RBMotor->SetSpeed(joy2Y);
-	}
-
-	void simpleIntake() {
-		float intakeFSpeed = m_Gamepad->GetBumper(XboxController::kLeftHand);
-		float intakeRSpeed = m_Gamepad->GetBumper(XboxController::kRightHand);
+	void lowerIntake() {
+		float intakeFSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kRightHand));
+		float intakeRSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kLeftHand));
 
 		m_lowerIntakeL->SetSpeed(intakeFSpeed - intakeRSpeed);
 		m_lowerIntakeR->SetSpeed(-intakeFSpeed + intakeRSpeed);
+	}
+
+	void operateConveyor() {
+		float conveyorFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
+		float conveyorRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
+
+		m_conveyor->SetSpeed(conveyorFSpeed - conveyorRSpeed);
+		m_upperIntakeL->Set(ControlMode::PercentOutput, conveyorFSpeed - conveyorRSpeed);
+		m_upperIntakeR->Set(ControlMode::PercentOutput, -conveyorFSpeed + conveyorRSpeed);
 	}
 
 	void cheezyDrive() {
 		float joy1Y;
 		float joy2X;
 
-		joy1Y = -limit(expo(m_Joystick->GetY(), 2));
-		joy2X = -limit(expo(m_Joystick2->GetX(), 3));
+		switch(cheezyState) {
+		case 1:
+			joy1Y = -limit(expo(m_GamepadDr->GetRawAxis(1), 2)); // Getting the X position from the joystick
+			joy2X = -limit(expo(m_GamepadDr->GetRawAxis(4), 3)); // Getting the Y position from the joystick
+			break;
+		case 2:
+			joy1Y = -limit(expo(m_GamepadDr->GetRawAxis(5), 2)); // Getting the X position from the joystick
+			joy2X = -limit(expo(m_GamepadDr->GetRawAxis(0), 3)); // Getting the Y position from the joystick
+			break;
+		}
 
 		m_LFMotor->SetSpeed(-joy1Y - joy2X);
 		m_LBMotor->SetSpeed(-joy1Y - joy2X);
 		m_RFMotor->SetSpeed(joy1Y - joy2X);
 		m_RBMotor->SetSpeed(joy1Y - joy2X);
-
 	}
 
 // #.f is used to tell the computer that the number here is not a whole number(1).
