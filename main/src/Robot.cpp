@@ -37,11 +37,11 @@ public:
 	TalonSRX *m_upperIntakeL, *m_upperIntakeR;
 	TalonSRX *m_climber1, *m_climber2;
 
-	Solenoid *m_shiftHigh;
 	Solenoid *m_shiftLow;
+	Solenoid *m_shiftHigh;
 
 	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState;
-	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2;
+	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, autoRunTwelve;
 
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
@@ -130,8 +130,8 @@ public:
 		m_GamepadOp = new XboxController(2);
 		m_GamepadDr = new XboxController(3);
 
-		m_shiftHigh = new Solenoid(0);
-		m_shiftLow = new Solenoid(1);
+		m_shiftLow = new Solenoid(0);
+		m_shiftHigh = new Solenoid(1);
 		m_gripperExtend = new Solenoid(2);
 		m_gripperRetract = new Solenoid(3);
 		m_gripperUp = new Solenoid(4);
@@ -215,11 +215,12 @@ public:
 /*		std::thread visionThread(VisionThread);
 		visionThread.detach();*/
 
-		driveState = 1;
+		driveState = 2;
 		cheezyState = 1;
 		lowerIntakeState = 0;
 		shiftToggleState1 = false;
 		shiftToggleState2 = false;
+		autoRunTwelve = false;
 		autoMode = 0;
 		autoState = 0;
 		autoDelay = 0;
@@ -279,6 +280,7 @@ public:
 		m_rightEncoder->Reset();
 //		nav->Reset();
 		autoState = 0;
+		autoRunTwelve = false;
 		autoTimer->Reset();
 		autoTimer->Start();
 		delayTimer->Reset();
@@ -325,6 +327,10 @@ public:
 						break;
 					}
 					break;
+				}
+				switch(autoState) {
+				case 3:
+					dyrdyr
 				}
 				break;
 			case 2: //deploy cube on close face of the switch
@@ -491,6 +497,14 @@ public:
 					break;
 				}
 				break;
+			case 12: //centre switch auto, then exchange
+				switch(autoState) {
+				case 0:
+					autoRunTwelve = true;
+					autoMode = 1;
+					break;
+
+				}
 			}
 		}
 	}
@@ -522,26 +536,26 @@ public:
 
 	void arcadeShift() {
 		if(m_Joystick->GetRawButton(1)) {
-			m_shiftHigh->Set(true);
-			m_shiftLow->Set(false);
+			m_shiftLow->Set(true);
+			m_shiftHigh->Set(false);
 		}
 		else {
-			m_shiftHigh->Set(false);
-			m_shiftLow->Set(true);
+			m_shiftLow->Set(false);
+			m_shiftHigh->Set(true);
 		}
 	}
 
 	void cheezyShift() {
 		if(m_GamepadOp->GetAButton() && !shiftToggleState1) {
-			m_shiftHigh->Set(true);
-			m_shiftLow->Set(false);
+			m_shiftLow->Set(true);
+			m_shiftHigh->Set(false);
 			shiftToggleState2 = true;
 		}
 		else if(!m_GamepadOp->GetAButton() && shiftToggleState2)
 			shiftToggleState1 = true;
 		else if(m_GamepadOp->GetAButton() && shiftToggleState1) {
-			m_shiftHigh->Set(false);
-			m_shiftLow->Set(true);
+			m_shiftLow->Set(false);
+			m_shiftHigh->Set(true);
 			shiftToggleState2 = false;
 		}
 		else if(!m_GamepadOp->GetAButton() && !shiftToggleState2)
