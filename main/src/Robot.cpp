@@ -40,13 +40,16 @@ public:
 	Solenoid *m_shiftHigh;
 	Solenoid *m_shiftLow;
 
-	int autoState, autoMode, autoDelay, driveState, cheezyState;
+	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState;
+	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2;
 
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
 
-	Solenoid *m_testExtend;
-	Solenoid *m_testRetract;
+	Solenoid *m_gripperExtend;
+	Solenoid *m_gripperRetract;
+	Solenoid *m_gripperUp;
+	Solenoid *m_gripperDown;
 
 	Encoder *m_leftEncoder;
 	Encoder *m_rightEncoder;
@@ -66,6 +69,9 @@ public:
 	Timer *autoTimer;
 	Timer *delayTimer;
 	Timer *triggerTimer;
+	Timer *intakeTimer;
+
+	Servo *m_tailgateServo;
 
 	//====================Pathfollow Variables==================
 	PathFollower *BBYCAKES;
@@ -76,8 +82,10 @@ public:
 	Path *path_centreSwitchLeft2, *path_centreSwitchRight2, *path_backupLeft, *path_backupRight;
 	//drive to switch and stop from any station
 	Path *path_sideVeerLeft, *path_sideVeerRight, *path_sideCrossLeft, *path_sideCrossRight;
-	//drive straight, drop cube if your side
-	Path *path_, *path_autoThreeSwitchStraight3;
+	//drive past auto line
+	Path *path_crossAutoLine;
+	//exchange
+	Path *path_exchange;
 
 /*	static void VisionThread()
     {
@@ -124,8 +132,12 @@ public:
 
 		m_shiftHigh = new Solenoid(0);
 		m_shiftLow = new Solenoid(1);
-		m_testExtend = new Solenoid(2);
-		m_testRetract = new Solenoid(3);
+		m_gripperExtend = new Solenoid(2);
+		m_gripperRetract = new Solenoid(3);
+		m_gripperUp = new Solenoid(4);
+		m_gripperDown = new Solenoid(5);
+
+		m_tailgateServo = new Servo(4);
 
 		autoTimer = new Timer();
 		autoTimer->Reset();
@@ -138,6 +150,10 @@ public:
 		triggerTimer = new Timer();
 		triggerTimer->Reset();
 		triggerTimer->Stop();
+
+		intakeTimer = new Timer();
+		intakeTimer->Reset();
+		intakeTimer->Stop();
 
 		//================Define Auto Paths===============
 		int zero[2] = {0, 0};
@@ -175,6 +191,24 @@ public:
 		int cp13[2] = {2000, -800};
 		path_sideVeerRight = new PathCurve(zero, cp13, cp12, sideVREnd, 40);
 
+		int sideCLEnd[2] = {6400, -15000};
+		int cp14[2] = {7500, 800};
+		int cp15[2] = {7400, -16000};
+		path_sideCrossLeft = new PathCurve(zero, cp14, cp15, sideCLEnd, 40);
+
+		int sideCREnd[2] = {6400, -15000};
+		int cp16[2] = {7500, -800};
+		int cp17[2] = {7400, 16000};
+		path_sideCrossRight = new PathCurve(zero, cp16, cp17, sideCREnd, 40);
+
+		int crossAutoEnd[2] = {5400, 0};
+		path_crossAutoLine = new PathLine(zero, crossAutoEnd, 10);
+
+		int exchangeEnd[2] = {0, -800};
+		int cp18[2] = {800, 0};
+		int cp19[2] = {800, -800};
+		path_exchange = new PathCurve(zero, cp18, cp19, exchangeEnd, 40);
+
 		nav = new AHRS(SPI::Port::kMXP);
 		nav->Reset();
 
@@ -183,6 +217,9 @@ public:
 
 		driveState = 1;
 		cheezyState = 1;
+		lowerIntakeState = 0;
+		shiftToggleState1 = false;
+		shiftToggleState2 = false;
 		autoMode = 0;
 		autoState = 0;
 		autoDelay = 0;
@@ -224,7 +261,7 @@ public:
 			if(m_GamepadDr->GetRawButton(i))
 				cheezyState = i;
 		}
-		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kLeftHand)) {
+		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kRightHand)) {
 			driveState = 2;
 		}
 		autoDelay = m_Joystick->GetRawAxis(4);
@@ -342,7 +379,7 @@ public:
 					break;
 				}
 				break;
-			case 3: //drive forward from right side, deploy cube if corresponding side
+			case 3: //drive forward from right side and veer left, deploy cube if corresponding side
 				switch(autoState) {
 				case 0:
 					BBYCAKES->initPath(path_sideVeerLeft, PathForward, -90);
@@ -358,6 +395,99 @@ public:
 					m_conveyor->SetSpeed(1.f);
 					m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
 					m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+					break;
+				}
+				break;
+			case 4: //drive forward from left side and veer right, deploy cube if corresponding side
+				switch(autoState) {
+				case 0:
+					BBYCAKES->initPath(path_sideVeerRight, PathForward, -90);
+					autoState++;
+					break;
+				case 1:
+					if(advancedAutoDrive()) {
+						if(plateColour[0] == 'L')
+							autoState++;
+					}
+					break;
+				case 2:
+					m_conveyor->SetSpeed(1.f);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+					break;
+				}
+				break;
+			case 5: //drive up right side, if corresponding side, run auto 3, if not, cross to left side
+				switch(plateColour[0]) {
+				case 'L':
+					switch(autoState) {
+					case 0:
+						BBYCAKES->initPath(path_sideCrossLeft, PathForward, -270);
+						autoState++;
+						break;
+					case 1:
+						if(advancedAutoDrive())
+							autoState++;
+						break;
+					case 2:
+						m_conveyor->SetSpeed(1.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+						break;
+					}
+					break;
+				case 'R':
+					autoMode = 3;
+				}
+				break;
+			case 6: //drive up left side, if corresponding side, run auto 4, if not, cross to right side
+				switch(plateColour[0]) {
+				case 'R':
+					switch(autoState) {
+					case 0:
+						BBYCAKES->initPath(path_sideCrossRight, PathForward, 270);
+						autoState++;
+						break;
+					case 1:
+						if(advancedAutoDrive())
+							autoState++;
+						break;
+					case 2:
+						m_conveyor->SetSpeed(1.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+						break;
+					}
+					break;
+				case 'L':
+					autoMode = 4;
+					break;
+				}
+				break;
+			case 10: //cross auto line from right side or left side
+				switch(autoState) {
+				case 0:
+					BBYCAKES->initPath(path_crossAutoLine, PathForward, 0);
+					autoState++;
+					break;
+				case 1:
+					advancedAutoDrive();
+					break;
+				}
+				break;
+			case 11: //exchange from centre
+				switch(autoState) {
+				case 0:
+					BBYCAKES->initPath(path_exchange, PathForward, -180);
+					autoState++;
+					break;
+				case 1:
+					if(advancedAutoDrive())
+						autoState++;
+					break;
+				case 2:
+					m_lowerIntakeL->SetSpeed(-1.f);
+					m_lowerIntakeR->SetSpeed(1.f);
 					break;
 				}
 				break;
@@ -382,9 +512,12 @@ public:
 			break;
 		case 2:
 			cheezyDrive();
-
+			cheezyShift();
+			applesGripper();
+			break;
 		}
-		lowerIntake();
+		operateConveyor();
+		applesServo();
 	}
 
 	void arcadeShift() {
@@ -399,7 +532,20 @@ public:
 	}
 
 	void cheezyShift() {
-
+		if(m_GamepadOp->GetAButton() && !shiftToggleState1) {
+			m_shiftHigh->Set(true);
+			m_shiftLow->Set(false);
+			shiftToggleState2 = true;
+		}
+		else if(!m_GamepadOp->GetAButton() && shiftToggleState2)
+			shiftToggleState1 = true;
+		else if(m_GamepadOp->GetAButton() && shiftToggleState1) {
+			m_shiftHigh->Set(false);
+			m_shiftLow->Set(true);
+			shiftToggleState2 = false;
+		}
+		else if(!m_GamepadOp->GetAButton() && !shiftToggleState2)
+			shiftToggleState1 = false;
 	}
 
 	bool advancedAutoDrive() {
@@ -430,11 +576,28 @@ public:
 	}
 
 	void lowerIntake() {
-		float intakeFSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kRightHand));
-		float intakeRSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kLeftHand));
+		switch(lowerIntakeState) {
+		case 0:
+			float intakeLSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kLeftHand));
+			float intakeRSpeed = -limit(m_GamepadDr->GetTriggerAxis(XboxController::kRightHand));
 
-		m_lowerIntakeL->SetSpeed(intakeFSpeed - intakeRSpeed);
-		m_lowerIntakeR->SetSpeed(-intakeFSpeed + intakeRSpeed);
+			m_lowerIntakeL->SetSpeed(intakeLSpeed);
+			m_lowerIntakeR->SetSpeed(intakeRSpeed);
+			if(m_GamepadDr->GetXButton()) {
+				lowerIntakeState = 10;
+				intakeTimer->Start();
+			}
+			break;
+		case 10:
+			m_lowerIntakeL->SetSpeed(-1.f);
+			m_lowerIntakeR->SetSpeed(1.f);
+			if(intakeTimer->Get() > 2.f) {
+				lowerIntakeState = 0;
+				intakeTimer->Reset();
+				intakeTimer->Stop();
+			}
+			break;
+		}
 	}
 
 	void operateConveyor() {
@@ -444,6 +607,39 @@ public:
 		m_conveyor->SetSpeed(conveyorFSpeed - conveyorRSpeed);
 		m_upperIntakeL->Set(ControlMode::PercentOutput, conveyorFSpeed - conveyorRSpeed);
 		m_upperIntakeR->Set(ControlMode::PercentOutput, -conveyorFSpeed + conveyorRSpeed);
+	}
+
+	void applesServo() {
+		if(m_GamepadOp->GetBumper(XboxController::kRightHand))
+			m_tailgateServo->SetAngle(90);
+		else
+			m_tailgateServo->SetAngle(0);
+	}
+
+	void applesGripper() {
+		if(m_GamepadDr->GetBumper(XboxController::kRightHand)) {
+			m_gripperExtend->Set(true);
+			m_gripperRetract->Set(false);
+		}
+		else {
+			m_gripperExtend->Set(false);
+			m_gripperRetract->Set(true);
+		}
+
+		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && !intakeToggleState1) {
+			m_gripperUp->Set(true);
+			m_gripperDown->Set(false);
+			intakeToggleState2 = true;
+		}
+		else if(!m_GamepadDr->GetBumper(XboxController::kLeftHand) && intakeToggleState2)
+			intakeToggleState1 = true;
+		else if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && intakeToggleState1) {
+			m_gripperUp->Set(false);
+			m_gripperDown->Set(true);
+			intakeToggleState2 = false;
+		}
+		else if(!m_GamepadDr->GetBumper(XboxController::kLeftHand) && !intakeToggleState2)
+			intakeToggleState1 = false;
 	}
 
 	void cheezyDrive() {
