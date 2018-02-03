@@ -16,9 +16,37 @@
 #include <LiveWindow/LiveWindow.h>
 #include "shiftlib.h"
 #include "ctre/Phoenix.h"
+/*~~~~~Code function Index~~~~~~
+ * Pathfollow Variables #106
+ * RobotInit #119
+ * Define Auto Paths #191
+ * DisabledPeriodic #283
+ * AutonomousInit #316
+ * AutonomousPeriodic #334
+ * TeleopInit #607
+ * TeleopPeriodic #616
+ * arcadeShift #637
+ * cheezyShift #649
+ * advancedAutoDrive #667
+ * arcadeDrive #680
+ * cheezyIntake #696
+ * arcadeIntake #722
+ * operateConveyor #731
+ * applesServo #757
+ * cheezyGripperPneumatics #764
+ * arcadeGripperPneumatics #791
+ * cheezyDrive #811
+ * climber #833
+ */
 
-#define GP_L 5
-#define GP_R 6
+#define GP_L 5 //GamePad left bumper
+#define GP_R 6 //GamePad Right bumper
+#define GP_UP 0 //GamePad D-Pad(pLus thing) up
+#define GP_DOWN 180 //GamePad D-Pad down. 0 is up and 180 is down.
+
+#define CONVEYOR_SPEED 0.5f
+#define UPPER_SPEED 0.5f
+#define LOWER_SPEED 0.5f
 
 //#define AUX_PWM
 
@@ -40,8 +68,8 @@ public:
 	Solenoid *m_shiftLow;
 	Solenoid *m_shiftHigh;
 
-	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState;
-	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, autoRunTwelve;
+	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState, conveyorState;
+	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
 
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
@@ -50,6 +78,8 @@ public:
 	Solenoid *m_gripperRetract;
 	Solenoid *m_gripperUp;
 	Solenoid *m_gripperDown;
+	Solenoid *m_climberExtend;
+	Solenoid *m_climberRetract;
 
 	Encoder *m_leftEncoder;
 	Encoder *m_rightEncoder;
@@ -138,6 +168,8 @@ public:
 		m_gripperRetract = new Solenoid(3);
 		m_gripperUp = new Solenoid(4);
 		m_gripperDown = new Solenoid(5);
+		m_climberExtend = new Solenoid(6);
+		m_climberRetract = new Solenoid(7);
 
 		m_tailgateServo = new Servo(4);
 
@@ -157,8 +189,24 @@ public:
 		intakeTimer->Reset();
 		intakeTimer->Stop();
 
+		driveState = 1;
+		cheezyState = 1;
+		lowerIntakeState = 0;
+		autoMode = 0;
+		autoState = 0;
+		autoDelay = 0;
+		conveyorState = 0;
+		shiftToggleState1 = false;
+		shiftToggleState2 = false;
+		climberToggleState1 = false;
+		climberToggleState2 = false;
+		autoRunTwelve = false;
+
+		m_leftEncoder = new Encoder(2,3);
+		m_rightEncoder = new Encoder(0,1);
+
 		//================Define Auto Paths===============
-		int zero[2] = {0, 0};
+		int zero[2] = {0, 0}; //starting point for all auto cases.
 
 		int centreLeftEnd[2] = {6400, -7000};
 		int cp1[2] = {0, -7000};
@@ -211,26 +259,31 @@ public:
 		int cp19[2] = {800, -800};
 		path_exchange = new PathCurve(zero, cp18, cp19, exchangeEnd, 40);
 
+		int backupEXLeftEnd[2] = {7000, -8000};
+		int cp20[2] = {6400, -7500};
+		int cp21[2] = {6700, -7750};
+		path_backupEXLeft = new PathCurve(centreLeftEnd, cp20, cp21, backupEXLeftEnd, 40);
 
+		int backupEXRightEnd[2] = {7400, 7400};
+		int cp22[2] = {7400,6900};
+		int cp23[2] = {6900,6450};
+		path_backupEXRight = new PathCurve(centreRightEnd, cp22, cp23, backupEXRightEnd, 40);
+
+		int exchangeLeft[2] = {7000, -8000};
+		int cp26[2] = {1,2};
+		int cp27[2] = {3,4};
+		path_exchangeLeft = new PathCurve(backupEXLeftEnd, cp26, cp27, exchangeLeft, 40);
+
+		int exchangeRight[2] = {7400, 7400};
+		int cp24[2] = {5,6};
+		int cp25[2] = {7,8};
+		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, 40);
 
 		nav = new AHRS(SPI::Port::kMXP);
 		nav->Reset();
 
 /*		std::thread visionThread(VisionThread);
 		visionThread.detach();*/
-
-		driveState = 2;
-		cheezyState = 1;
-		lowerIntakeState = 0;
-		shiftToggleState1 = false;
-		shiftToggleState2 = false;
-		autoRunTwelve = false;
-		autoMode = 0;
-		autoState = 0;
-		autoDelay = 0;
-
-		m_leftEncoder = new Encoder(2,3);
-		m_rightEncoder = new Encoder(0,1);
 
 		m_turnPID = new SimPID(1.0, 0, 0.02, 0, 5.0);
 		m_turnPID->setContinuousAngle(true);
@@ -313,6 +366,7 @@ public:
 						m_conveyor->Set(1.f);
 						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+						BBYCAKES->initPath(path_backupEXLeft, PathBackward, 120);
 						break;
 					}
 					break;
@@ -332,12 +386,16 @@ public:
 						m_conveyor->Set(1.f);
 						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+						BBYCAKES->initPath(path_backupEXRight, PathBackward, -120);
 						break;
 					}
 					break;
 				}
 				switch(autoState) {
 				case 3:
+					m_conveyor->Set(0.f);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 					if(autoRunTwelve)
 						autoMode = 12;
 				}
@@ -512,7 +570,48 @@ public:
 					autoRunTwelve = true;
 					autoMode = 1;
 					break;
-
+				case 3:
+					if(advancedAutoDrive())
+						autoState++;
+					break;
+				}
+				switch(plateColour[0]) {
+				case 'L':
+					switch(autoState) {
+					case 4:
+						BBYCAKES->initPath(path_exchangeLeft, PathForward, 180);
+						autoState++;
+						break;
+					case 5:
+						if(advancedAutoDrive())
+							autoState++;
+						m_lowerIntakeL->SetSpeed(1.f);
+						m_lowerIntakeR->SetSpeed(-1.f);
+						break;
+					case 6:
+						m_lowerIntakeL->SetSpeed(-1.f);
+						m_lowerIntakeR->SetSpeed(1.f);
+						break;
+					}
+					break;
+				case 'R':
+					switch(autoState) {
+					case 4:
+						BBYCAKES->initPath(path_exchangeRight, PathForward, -180);
+						autoState++;
+						break;
+					case 5:
+						if(advancedAutoDrive())
+							autoState++;
+						m_lowerIntakeL->SetSpeed(1.f);
+						m_lowerIntakeR->SetSpeed(-1.f);
+						break;
+					case 6:
+						m_lowerIntakeL->SetSpeed(-1.f);
+						m_lowerIntakeR->SetSpeed(1.f);
+						break;
+					}
+					break;
 				}
 			}
 		}
@@ -532,11 +631,14 @@ public:
 		case 1:
 			arcadeDrive();
 			arcadeShift();
+			arcadeIntake();
+			arcadeGripperPneumatics();
 			break;
 		case 2:
 			cheezyDrive();
 			cheezyShift();
-			applesGripper();
+			cheezyIntake();
+			cheezyGripperPneumatics();
 			break;
 		}
 		operateConveyor();
@@ -555,19 +657,19 @@ public:
 	}
 
 	void cheezyShift() {
-		if(m_GamepadOp->GetAButton() && !shiftToggleState1) {
+		if(m_GamepadDr->GetAButton() && !shiftToggleState1) {
 			m_shiftLow->Set(true);
 			m_shiftHigh->Set(false);
 			shiftToggleState2 = true;
 		}
-		else if(!m_GamepadOp->GetAButton() && shiftToggleState2)
+		else if(!m_GamepadDr->GetAButton() && shiftToggleState2)
 			shiftToggleState1 = true;
-		else if(m_GamepadOp->GetAButton() && shiftToggleState1) {
+		else if(m_GamepadDr->GetAButton() && shiftToggleState1) {
 			m_shiftLow->Set(false);
 			m_shiftHigh->Set(true);
 			shiftToggleState2 = false;
 		}
-		else if(!m_GamepadOp->GetAButton() && !shiftToggleState2)
+		else if(!m_GamepadDr->GetAButton() && !shiftToggleState2)
 			shiftToggleState1 = false;
 	}
 
@@ -598,12 +700,12 @@ public:
 		m_RBMotor->SetSpeed(joyY + joyX);
 	}
 
-	void lowerIntake() {
+	void cheezyIntake() {
+		float intakeLSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kLeftHand));
+		float intakeRSpeed = -limit(m_GamepadDr->GetTriggerAxis(XboxController::kRightHand));
+
 		switch(lowerIntakeState) {
 		case 0:
-			float intakeLSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kLeftHand));
-			float intakeRSpeed = -limit(m_GamepadDr->GetTriggerAxis(XboxController::kRightHand));
-
 			m_lowerIntakeL->SetSpeed(intakeLSpeed);
 			m_lowerIntakeR->SetSpeed(intakeRSpeed);
 			if(m_GamepadDr->GetXButton()) {
@@ -623,13 +725,36 @@ public:
 		}
 	}
 
-	void operateConveyor() {
-		float conveyorFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
-		float conveyorRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
+	void arcadeIntake() {
+		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
+		float intakeRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
 
-		m_conveyor->SetSpeed(conveyorFSpeed - conveyorRSpeed);
-		m_upperIntakeL->Set(ControlMode::PercentOutput, conveyorFSpeed - conveyorRSpeed);
-		m_upperIntakeR->Set(ControlMode::PercentOutput, -conveyorFSpeed + conveyorRSpeed);
+		m_lowerIntakeL->SetSpeed(-intakeFSpeed + intakeRSpeed);
+		m_lowerIntakeR->SetSpeed(intakeFSpeed - intakeRSpeed);
+	}
+
+	void operateConveyor() {
+		float conveyorJoy = limit(m_GamepadOp->GetX(XboxController::kLeftHand));
+
+		switch(conveyorState) {
+		case 0:
+			if(m_GamepadOp->GetAButton())
+				conveyorState = 10;
+
+			m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+			m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+
+			m_conveyor->SetSpeed(conveyorJoy);
+			break;
+		case 10:
+			if(!m_GamepadOp->GetAButton())
+				conveyorState = 0;
+
+			m_conveyor->SetSpeed(CONVEYOR_SPEED);
+			m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
+			m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+			break;
+		}
 	}
 
 	void applesServo() {
@@ -639,7 +764,7 @@ public:
 			m_tailgateServo->SetAngle(0);
 	}
 
-	void applesGripper() {
+	void cheezyGripperPneumatics() {
 		if(m_GamepadDr->GetBumper(XboxController::kRightHand)) {
 			m_gripperExtend->Set(true);
 			m_gripperRetract->Set(false);
@@ -665,6 +790,26 @@ public:
 			intakeToggleState1 = false;
 	}
 
+	void arcadeGripperPneumatics() {
+		if(m_GamepadOp->GetBButton()) {
+			m_gripperExtend->Set(true);
+			m_gripperRetract->Set(false);
+		}
+		else {
+			m_gripperExtend->Set(false);
+			m_gripperRetract->Set(true);
+		}
+
+		if(m_GamepadOp->GetPOV(0) == GP_UP) {
+			m_gripperUp->Set(true);
+			m_gripperDown->Set(false);
+		}
+		else if(m_GamepadOp->GetPOV(0) == GP_DOWN) {
+			m_gripperUp->Set(false);
+			m_gripperDown->Set(true);
+		}
+	}
+
 	void cheezyDrive() {
 		float joy1Y;
 		float joy2X;
@@ -684,6 +829,23 @@ public:
 		m_LBMotor->SetSpeed(-joy1Y - joy2X);
 		m_RFMotor->SetSpeed(joy1Y - joy2X);
 		m_RBMotor->SetSpeed(joy1Y - joy2X);
+	}
+
+	void climber() {
+		if((m_GamepadOp->GetStartButton() && m_GamepadOp->GetBackButton()) && !climberToggleState1) {
+			m_climberExtend->Set(true);
+			m_climberRetract->Set(false);
+			climberToggleState2 = true;
+		}
+		else if(!(m_GamepadOp->GetStartButton() || m_GamepadOp->GetBackButton()) && climberToggleState2)
+			climberToggleState1 = true;
+		else if((m_GamepadOp->GetStartButton() && m_GamepadOp->GetBackButton()) && climberToggleState1) {
+			m_climberExtend->Set(false);
+			m_climberRetract->Set(true);
+			climberToggleState2 = false;
+		}
+		else if(!(m_GamepadOp->GetStartButton() || m_GamepadOp->GetBackButton()) && !climberToggleState2)
+			climberToggleState1 = false;
 	}
 
 // #.f is used to tell the computer that the number here is not a whole number(1).
