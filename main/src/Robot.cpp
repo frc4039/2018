@@ -86,6 +86,8 @@ public:
 	Path *path_crossAutoLine;
 	//exchange
 	Path *path_exchange;
+	//exchange after center auto
+	Path *path_backupEXRight, *path_backupEXLeft, *path_exchangeRight, *path_exchangeLeft;
 
 /*	static void VisionThread()
     {
@@ -209,6 +211,8 @@ public:
 		int cp19[2] = {800, -800};
 		path_exchange = new PathCurve(zero, cp18, cp19, exchangeEnd, 40);
 
+
+
 		nav = new AHRS(SPI::Port::kMXP);
 		nav->Reset();
 
@@ -304,6 +308,8 @@ public:
 							autoState++;
 						break;
 					case 2:
+						if(autoTimer->Get() > 2.f)
+							autoState++;
 						m_conveyor->Set(1.f);
 						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
@@ -321,6 +327,8 @@ public:
 							autoState++;
 						break;
 					case 2:
+						if(autoTimer->Get() > 2.f)
+							autoState++;
 						m_conveyor->Set(1.f);
 						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
@@ -330,7 +338,8 @@ public:
 				}
 				switch(autoState) {
 				case 3:
-					dyrdyr
+					if(autoRunTwelve)
+						autoMode = 12;
 				}
 				break;
 			case 2: //deploy cube on close face of the switch
