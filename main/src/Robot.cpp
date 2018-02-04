@@ -44,7 +44,7 @@
 #define GP_UP 0 //GamePad D-Pad(pLus thing) up
 #define GP_DOWN 180 //GamePad D-Pad down. 0 is up and 180 is down.
 
-#define CONVEYOR_SPEED 0.5f
+#define CONVEYOR_SPEED -1.f
 #define UPPER_SPEED 0.5f
 #define LOWER_SPEED 0.5f
 
@@ -173,6 +173,12 @@ public:
 
 		m_tailgateServo = new Servo(4);
 
+		m_leftEncoder = new Encoder(2,3);
+		m_rightEncoder = new Encoder(0,1);
+
+		nav = new AHRS(SPI::Port::kMXP);
+		nav->Reset();
+
 		autoTimer = new Timer();
 		autoTimer->Reset();
 		autoTimer->Stop();
@@ -201,9 +207,6 @@ public:
 		climberToggleState1 = false;
 		climberToggleState2 = false;
 		autoRunTwelve = false;
-
-		m_leftEncoder = new Encoder(2,3);
-		m_rightEncoder = new Encoder(0,1);
 
 		//================Define Auto Paths===============
 		int zero[2] = {0, 0}; //starting point for all auto cases.
@@ -279,12 +282,6 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, 40);
 
-		nav = new AHRS(SPI::Port::kMXP);
-		nav->Reset();
-
-/*		std::thread visionThread(VisionThread);
-		visionThread.detach();*/
-
 		m_turnPID = new SimPID(1.0, 0, 0.02, 0, 5.0);
 		m_turnPID->setContinuousAngle(true);
 		m_drivePID = new SimPID(0.001, 0, 0.002, 0, 200);
@@ -297,9 +294,13 @@ public:
 	}
 
 	void DisabledPeriodic() {
+		m_climberExtend->Set(false);
+		m_climberRetract->Set(true);
+
 		long long int LRead = m_leftEncoder->Get();
 		long long int RRead = m_rightEncoder->Get();
 		long double GRead = nav->GetYaw();
+
 		for(int i = 1; i <= 12; i++) {
 			if(m_Joystick->GetRawButton(i))	{
 				autoMode = i;
@@ -315,14 +316,16 @@ public:
 				triggerTimer->Stop();
 			}
 		}
+
 		for(int i = 1; i <= 2; i++) {
 			if(m_GamepadDr->GetRawButton(i))
 				cheezyState = i;
 		}
-		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kRightHand)) {
+
+		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kRightHand))
 			driveState = 2;
-		}
-		autoDelay = m_Joystick->GetRawAxis(4);
+
+		autoDelay = -5*(m_Joystick->GetRawAxis(3) - 1);
 		DriverStation::ReportError("Left Encoder: " + std::to_string(LRead) + " | Right Encoder: " + std::to_string(RRead) + " | Gyro: " + std::to_string(GRead));
 		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Auto Delay: " + std::to_string(autoDelay));
 		DriverStation::ReportError("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
@@ -624,6 +627,8 @@ public:
 		m_RBMotor->SetSpeed(0.f);
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
+		m_climberExtend->Set(false);
+		m_climberRetract->Set(true);
 	}
 
 	void TeleopPeriodic() {
@@ -631,8 +636,6 @@ public:
 		case 1:
 			arcadeDrive();
 			arcadeShift();
-			arcadeIntake();
-			arcadeGripperPneumatics();
 			break;
 		case 2:
 			cheezyDrive();
@@ -641,6 +644,9 @@ public:
 			cheezyGripperPneumatics();
 			break;
 		}
+		operateIntake();
+		operateGripperPneumatics();
+		climber();
 		operateConveyor();
 		applesServo();
 	}
@@ -725,16 +731,16 @@ public:
 		}
 	}
 
-	void arcadeIntake() {
+	void operateIntake() {
 		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
 		float intakeRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
 
-		m_lowerIntakeL->SetSpeed(-intakeFSpeed + intakeRSpeed);
+		m_lowerIntakeL->SetSpeed(intakeFSpeed - intakeRSpeed);
 		m_lowerIntakeR->SetSpeed(intakeFSpeed - intakeRSpeed);
 	}
 
 	void operateConveyor() {
-		float conveyorJoy = limit(m_GamepadOp->GetX(XboxController::kLeftHand));
+		float conveyorJoy = -limit(m_GamepadOp->GetY(XboxController::kLeftHand));
 
 		switch(conveyorState) {
 		case 0:
@@ -790,7 +796,7 @@ public:
 			intakeToggleState1 = false;
 	}
 
-	void arcadeGripperPneumatics() {
+	void operateGripperPneumatics() {
 		if(m_GamepadOp->GetBButton()) {
 			m_gripperExtend->Set(true);
 			m_gripperRetract->Set(false);
@@ -832,20 +838,10 @@ public:
 	}
 
 	void climber() {
-		if((m_GamepadOp->GetStartButton() && m_GamepadOp->GetBackButton()) && !climberToggleState1) {
+		if(m_GamepadOp->GetStartButton() && m_GamepadOp->GetBackButton()) {
 			m_climberExtend->Set(true);
 			m_climberRetract->Set(false);
-			climberToggleState2 = true;
 		}
-		else if(!(m_GamepadOp->GetStartButton() || m_GamepadOp->GetBackButton()) && climberToggleState2)
-			climberToggleState1 = true;
-		else if((m_GamepadOp->GetStartButton() && m_GamepadOp->GetBackButton()) && climberToggleState1) {
-			m_climberExtend->Set(false);
-			m_climberRetract->Set(true);
-			climberToggleState2 = false;
-		}
-		else if(!(m_GamepadOp->GetStartButton() || m_GamepadOp->GetBackButton()) && !climberToggleState2)
-			climberToggleState1 = false;
 	}
 
 // #.f is used to tell the computer that the number here is not a whole number(1).
