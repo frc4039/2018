@@ -74,8 +74,8 @@ public:
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
 
-	Solenoid *m_gripperExtend;
 	Solenoid *m_gripperRetract;
+	Solenoid *m_gripperExtend;
 	Solenoid *m_gripperUp;
 	Solenoid *m_gripperDown;
 	Solenoid *m_climberExtend;
@@ -173,8 +173,8 @@ public:
 
 		m_tailgateServo = new Servo(4);
 
-		m_leftEncoder = new Encoder(2,3);
-		m_rightEncoder = new Encoder(0,1);
+		m_leftEncoder = new Encoder(0,1);
+		m_rightEncoder = new Encoder(2,3);
 
 		nav = new AHRS(SPI::Port::kMXP);
 		nav->Reset();
@@ -740,7 +740,7 @@ public:
 	}
 
 	void operateConveyor() {
-		float conveyorJoy = -limit(m_GamepadOp->GetY(XboxController::kLeftHand));
+		float conveyorJoy = limit(m_GamepadOp->GetY(XboxController::kLeftHand));
 
 		switch(conveyorState) {
 		case 0:
@@ -772,12 +772,12 @@ public:
 
 	void cheezyGripperPneumatics() {
 		if(m_GamepadDr->GetBumper(XboxController::kRightHand)) {
-			m_gripperExtend->Set(true);
-			m_gripperRetract->Set(false);
+			m_gripperRetract->Set(true);
+			m_gripperExtend->Set(false);
 		}
 		else {
-			m_gripperExtend->Set(false);
-			m_gripperRetract->Set(true);
+			m_gripperRetract->Set(false);
+			m_gripperExtend->Set(true);
 		}
 
 		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && !intakeToggleState1) {
@@ -798,12 +798,12 @@ public:
 
 	void operateGripperPneumatics() {
 		if(m_GamepadOp->GetBButton()) {
-			m_gripperExtend->Set(true);
-			m_gripperRetract->Set(false);
+			m_gripperRetract->Set(true);
+			m_gripperExtend->Set(false);
 		}
 		else {
-			m_gripperExtend->Set(false);
-			m_gripperRetract->Set(true);
+			m_gripperRetract->Set(false);
+			m_gripperExtend->Set(true);
 		}
 
 		if(m_GamepadOp->GetPOV(0) == GP_UP) {
