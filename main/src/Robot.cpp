@@ -221,16 +221,16 @@ public:
 		int cp4[2] = {6400, 0};
 		path_centreSwitchRight = new PathCurve(zero, cp3, cp4, centreRightEnd, 40);
 
-		int centreLeftEnd2[2] = {5400, -6000};
+		int centreLeftEnd2[2] = {9500, -5400};
 		int cp5[2] = {1000, 0};
-		int cp6[2] = {4400, -6000};
+		int cp6[2] = {7500, -5400};
 		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, 40);
 		int cp7[2] = {4400, -7600};
 		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, centreLeftEnd, 40);
 
-		int centreRightEnd2[2] = {5400, 5400};
+		int centreRightEnd2[2] = {9500, 5400};
 		int cp8[2] = {1000, 0};
-		int cp9[2] = {4400, 5400};
+		int cp9[2] = {7500, 5400};
 		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, 40);
 		int cp10[2] = {4400, -7000};
 		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, centreRightEnd, 40);
@@ -254,7 +254,7 @@ public:
 		int cp17[2] = {7400, 16000};
 		path_sideCrossRight = new PathCurve(zero, cp16, cp17, sideCREnd, 40);
 
-		int crossAutoEnd[2] = {5400, 0};
+		int crossAutoEnd[2] = {13000, 0};
 		path_crossAutoLine = new PathLine(zero, crossAutoEnd, 10);
 
 		int exchangeEnd[2] = {0, -800};
@@ -282,11 +282,11 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, 40);
 
-		m_turnPID = new SimPID(1.0, 0, 0.02, 0, 5.0);
+		m_turnPID = new SimPID(0.2, 0, 0.05, 0, 0.9);
 		m_turnPID->setContinuousAngle(true);
-		m_drivePID = new SimPID(0.001, 0, 0.002, 0, 200);
-		m_drivePID->setMaxOutput(0.9);
-		m_finalTurnPID = new SimPID(0.9, 0, 0.02, 0, 5.0);
+		m_drivePID = new SimPID(0.0005, 0, 0, 0, 200);
+		m_drivePID->setMaxOutput(0.8);
+		m_finalTurnPID = new SimPID(0.9, 0, 0.02, 0, 0.9);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		BBYCAKES = new PathFollower(500, PI/3, m_drivePID, m_turnPID, m_finalTurnPID);
@@ -310,6 +310,7 @@ public:
 				triggerTimer->Start();
 				if(triggerTimer->Get() > 4.f)
 					driveState = 1;
+				BBYCAKES->reset();
 			}
 			else {
 				triggerTimer->Reset();
@@ -329,6 +330,9 @@ public:
 		DriverStation::ReportError("Left Encoder: " + std::to_string(LRead) + " | Right Encoder: " + std::to_string(RRead) + " | Gyro: " + std::to_string(GRead));
 		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Auto Delay: " + std::to_string(autoDelay));
 		DriverStation::ReportError("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
+
+		BBYCAKES->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
+		printf("robot position x: %d\ty:%d\n", BBYCAKES->getXPos(), BBYCAKES->getYPos());
 	}
 
 	void AutonomousInit() override {
@@ -339,6 +343,8 @@ public:
 		m_leftEncoder->Reset();
 		m_rightEncoder->Reset();
 //		nav->Reset();
+		m_shiftLow->Set(true);
+		m_shiftHigh->Set(false);
 		autoState = 0;
 		autoRunTwelve = false;
 		autoTimer->Reset();
