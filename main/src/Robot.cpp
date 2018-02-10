@@ -48,6 +48,8 @@
 #define UPPER_SPEED 0.5f
 #define LOWER_SPEED 0.5f
 
+#define APPLES 14
+
 //#define AUX_PWM
 
 class Robot: public frc::IterativeRobot {
@@ -70,6 +72,7 @@ public:
 
 	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState, conveyorState;
 	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
+	float currentGTime;
 
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
@@ -78,8 +81,8 @@ public:
 	Solenoid *m_gripperExtend;
 	Solenoid *m_gripperUp;
 	Solenoid *m_gripperDown;
-	Solenoid *m_climberExtend;
-	Solenoid *m_climberRetract;
+	Solenoid *m_squareExtend;
+	Solenoid *m_squareRetract;
 
 	Encoder *m_leftEncoder;
 	Encoder *m_rightEncoder;
@@ -100,6 +103,7 @@ public:
 	Timer *delayTimer;
 	Timer *triggerTimer;
 	Timer *intakeTimer;
+	Timer *gripperTimer;
 
 	Servo *m_tailgateServo;
 
@@ -135,13 +139,13 @@ public:
     }*/
 
 	void RobotInit() {
-		m_LFMotor = new VictorSP(6); // The place where you initialize your variables to their victors and which port on the RoboRio/computer
+		m_LFMotor = new VictorSP(9); // The place where you initialize your variables to their victors and which port on the RoboRio/computer
 		m_LFMotor->SetSafetyEnabled(true);
-		m_LBMotor = new VictorSP(7); // ^
+		m_LBMotor = new VictorSP(8); // ^
 		m_LBMotor->SetSafetyEnabled(true);
-		m_RFMotor = new VictorSP(8); // ^
+		m_RFMotor = new VictorSP(7); // ^
 		m_RFMotor->SetSafetyEnabled(true);
-		m_RBMotor = new VictorSP(9); // ^
+		m_RBMotor = new VictorSP(6); // ^
 		m_RBMotor->SetSafetyEnabled(true);
 
 		CameraServer::GetInstance()->StartAutomaticCapture();
@@ -166,10 +170,10 @@ public:
 		m_shiftHigh = new Solenoid(1);
 		m_gripperExtend = new Solenoid(2);
 		m_gripperRetract = new Solenoid(3);
-		m_gripperUp = new Solenoid(4);
-		m_gripperDown = new Solenoid(5);
-		m_climberExtend = new Solenoid(6);
-		m_climberRetract = new Solenoid(7);
+		m_gripperUp = new Solenoid(5);
+		m_gripperDown = new Solenoid(4);
+		m_squareExtend = new Solenoid(6);
+		m_squareRetract = new Solenoid(7);
 
 		m_tailgateServo = new Servo(4);
 
@@ -194,6 +198,10 @@ public:
 		intakeTimer = new Timer();
 		intakeTimer->Reset();
 		intakeTimer->Stop();
+
+		gripperTimer = new Timer();
+		gripperTimer->Reset();
+		gripperTimer->Stop();
 
 		driveState = 1;
 		cheezyState = 1;
@@ -235,13 +243,13 @@ public:
 		int cp10[2] = {4400, -7000};
 		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, centreRightEnd, 40);
 
-		int sideVLEnd[2] = {6400, -800};
+		int sideVLEnd[2] = {6400, 0};
 		int cp11[2] = {2000, 800};
-		int cp12[2] = {7000, 0};
-		path_sideVeerLeft = new PathCurve(zero, cp11, cp12, sideVLEnd, 40);
+		int cp12[2] = {14000, 0};
+		path_sideVeerLeft = new PathCurve(zero, cp11, cp12, sideVLEnd, 60);
 
-		int sideVREnd[2] = {6400, 800};
-		int cp13[2] = {2000, -800};
+		int sideVREnd[2] = {13700, 2700};
+		int cp13[2] = {4000, -2000};
 		path_sideVeerRight = new PathCurve(zero, cp13, cp12, sideVREnd, 40);
 
 		int sideCLEnd[2] = {6400, -15000};
@@ -282,11 +290,11 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, 40);
 
-		m_turnPID = new SimPID(0.2, 0, 0.05, 0, 0.9);
+		m_turnPID = new SimPID(0.4, 0, 0.125, 0, 0.9);
 		m_turnPID->setContinuousAngle(true);
 		m_drivePID = new SimPID(0.0005, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(0.8);
-		m_finalTurnPID = new SimPID(0.9, 0, 0.02, 0, 0.9);
+		m_finalTurnPID = new SimPID(0.2, 0, 0.05, 0, 0.9);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		BBYCAKES = new PathFollower(500, PI/3, m_drivePID, m_turnPID, m_finalTurnPID);
@@ -294,9 +302,6 @@ public:
 	}
 
 	void DisabledPeriodic() {
-		m_climberExtend->Set(false);
-		m_climberRetract->Set(true);
-
 		long long int LRead = m_leftEncoder->Get();
 		long long int RRead = m_rightEncoder->Get();
 		long double GRead = nav->GetYaw();
@@ -340,9 +345,20 @@ public:
 		m_LBMotor->SetSpeed(0.f);
 		m_RFMotor->SetSpeed(0.f);
 		m_RBMotor->SetSpeed(0.f);
+		m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+		m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+		m_conveyor->SetSpeed(0.f);
+		m_lowerIntakeL->SetSpeed(0.f);
+		m_lowerIntakeR->SetSpeed(0.f);
+		m_gripperDown->Set(true);
+		m_gripperUp->Set(false);
+		m_squareExtend->Set(true);
+		m_squareRetract->Set(false);
+		m_gripperRetract->Set(false);
+		m_gripperExtend->Set(true);
 		m_leftEncoder->Reset();
 		m_rightEncoder->Reset();
-//		nav->Reset();
+		nav->Reset();
 		m_shiftLow->Set(true);
 		m_shiftHigh->Set(false);
 		autoState = 0;
@@ -424,8 +440,9 @@ public:
 						}
 						break;
 					case 2:
-						m_lowerIntakeL->SetSpeed(-1.f);
-						m_lowerIntakeR->SetSpeed(1.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						m_conveyor->SetSpeed(CONVEYOR_SPEED);
 						BBYCAKES->initPath(path_backupLeft, PathBackward, 180);
 						if(autoTimer->Get() > 2.5)
 							autoState++;
@@ -466,36 +483,52 @@ public:
 				case 0:
 					BBYCAKES->initPath(path_sideVeerLeft, PathForward, -90);
 					autoState++;
+					autoTimer->Reset();
 					break;
 				case 1:
-					if(advancedAutoDrive()) {
+					if(advancedAutoDrive() || autoTimer->Get() > 10.f) {
+						autoTimer->Reset();
 						if(plateColour[0] == 'R')
 							autoState++;
 					}
 					break;
 				case 2:
-					m_conveyor->SetSpeed(1.f);
-					m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
-					m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+					if(autoTimer->Get() < 0.3) {
+						m_LFMotor->SetSpeed(-0.9f);
+						m_LBMotor->SetSpeed(-0.9f);
+						m_RFMotor->SetSpeed(0.9f);
+						m_RFMotor->SetSpeed(0.9f);
+					}
+					m_conveyor->SetSpeed(CONVEYOR_SPEED);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 					break;
 				}
 				break;
 			case 4: //drive forward from left side and veer right, deploy cube if corresponding side
 				switch(autoState) {
 				case 0:
-					BBYCAKES->initPath(path_sideVeerRight, PathForward, -90);
+					BBYCAKES->initPath(path_sideVeerRight, PathForward, 90);
 					autoState++;
+					autoTimer->Reset();
 					break;
 				case 1:
-					if(advancedAutoDrive()) {
+					if(advancedAutoDrive() || autoTimer->Get() > 10.f) {
+						autoTimer->Reset();
 						if(plateColour[0] == 'L')
 							autoState++;
 					}
 					break;
 				case 2:
-					m_conveyor->SetSpeed(1.f);
+					if(autoTimer->Get() < 0.3) {
+						m_LFMotor->SetSpeed(-0.9f);
+						m_LBMotor->SetSpeed(-0.9f);
+						m_RFMotor->SetSpeed(0.9f);
+						m_RFMotor->SetSpeed(0.9f);
+					}
+					m_conveyor->SetSpeed(CONVEYOR_SPEED);
 					m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
-					m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, -1.f);
 					break;
 				}
 				break;
@@ -631,10 +664,16 @@ public:
 		m_LBMotor->SetSpeed(0.f);
 		m_RFMotor->SetSpeed(0.f);
 		m_RBMotor->SetSpeed(0.f);
+		m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+		m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+		m_conveyor->SetSpeed(0.f);
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
-		m_climberExtend->Set(false);
-		m_climberRetract->Set(true);
+		m_gripperDown->Set(true);
+		m_gripperUp->Set(false);
+		gripperTimer->Reset();
+		gripperTimer->Start();
+		currentGTime = 0.f;
 	}
 
 	void TeleopPeriodic() {
@@ -763,7 +802,7 @@ public:
 				conveyorState = 0;
 
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
-			m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
+			m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 			m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 			break;
 		}
@@ -806,10 +845,17 @@ public:
 		if(m_GamepadOp->GetBButton()) {
 			m_gripperRetract->Set(true);
 			m_gripperExtend->Set(false);
+			m_squareExtend->Set(false);
+			m_squareRetract->Set(true);
+			currentGTime = gripperTimer->Get();
 		}
 		else {
-			m_gripperRetract->Set(false);
-			m_gripperExtend->Set(true);
+			m_squareExtend->Set(true);
+			m_squareRetract->Set(false);
+			if(gripperTimer->Get() > currentGTime + 0.5f) {
+				m_gripperRetract->Set(false);
+				m_gripperExtend->Set(true);
+			}
 		}
 
 		if(m_GamepadOp->GetPOV(0) == GP_UP) {
@@ -844,10 +890,7 @@ public:
 	}
 
 	void climber() {
-		if(m_GamepadOp->GetStartButton() && m_GamepadOp->GetBackButton()) {
-			m_climberExtend->Set(true);
-			m_climberRetract->Set(false);
-		}
+
 	}
 
 // #.f is used to tell the computer that the number here is not a whole number(1).
@@ -882,11 +925,9 @@ public:
 	    ss << value;
 	    return ss.str();
 	}*/
-
 	void TestPeriodic() {
 
 	}
-
 private:
 
 };
