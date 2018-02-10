@@ -294,7 +294,7 @@ public:
 		m_turnPID->setContinuousAngle(true);
 		m_drivePID = new SimPID(0.0005, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(0.8);
-		m_finalTurnPID = new SimPID(0.2, 0, 0.05, 0, 0.9);
+		m_finalTurnPID = new SimPID(0.4, 0, 0.05, 0, 0.9);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		BBYCAKES = new PathFollower(500, PI/3, m_drivePID, m_turnPID, m_finalTurnPID);
