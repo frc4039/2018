@@ -49,8 +49,11 @@
 #define LOWER_SPEED 0.5f
 
 #define APPLES 14
+#define CURVE_RES 40
+#define LINE_RES 10
 
 //#define AUX_PWM
+#define PRACTICE_BOT
 
 class Robot: public frc::IterativeRobot {
 public:
@@ -108,7 +111,7 @@ public:
 	Servo *m_tailgateServo;
 
 	//====================Pathfollow Variables==================
-	PathFollower *BBYCAKES;
+	PathFollower *METRO;
 
 	//drive to switch, drop cube on ends
 	Path *path_centreSwitchLeft, *path_centreSwitchRight;
@@ -222,83 +225,86 @@ public:
 		int centreLeftEnd[2] = {6400, -7000};
 		int cp1[2] = {0, -7000};
 		int cp2[2] = {6400, 0};
-		path_centreSwitchLeft = new PathCurve(zero, cp1, cp2, centreLeftEnd, 40);
+		path_centreSwitchLeft = new PathCurve(zero, cp1, cp2, centreLeftEnd, CURVE_RES);
 
 		int centreRightEnd[2] = {6400, 6400};
 		int cp3[2] = {0, 6400};
 		int cp4[2] = {6400, 0};
-		path_centreSwitchRight = new PathCurve(zero, cp3, cp4, centreRightEnd, 40);
+		path_centreSwitchRight = new PathCurve(zero, cp3, cp4, centreRightEnd, CURVE_RES);
 
 		int centreLeftEnd2[2] = {9500, -5400};
-		int cp5[2] = {1000, 0};
-		int cp6[2] = {7500, -5400};
-		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, 40);
-		int cp7[2] = {4400, -7600};
-		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, centreLeftEnd, 40);
+		int cp5[2] = {3000, 0};
+		int cp6[2] = {3500, -5400};
+		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, CURVE_RES);
+		int cp7[2] = {4400, -12700};
+		int backupLEnd[2] = {24200, -12600};
+		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, backupLEnd, CURVE_RES);
 
-		int centreRightEnd2[2] = {9500, 5400};
-		int cp8[2] = {1000, 0};
-		int cp9[2] = {7500, 5400};
-		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, 40);
-		int cp10[2] = {4400, -7000};
-		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, centreRightEnd, 40);
+		int centreRightEnd2[2] = {9500, 4400};
+		int cp8[2] = {3000, 0};
+		int cp9[2] = {3500, 4400};
+		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, CURVE_RES);
+		int cp10[2] = {4400, 9700};
+		int backupREnd[2] = {24200, 9600};
+		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, backupREnd, CURVE_RES);
 
-		int sideVLEnd[2] = {6400, 0};
-		int cp11[2] = {2000, 800};
-		int cp12[2] = {14000, 0};
-		path_sideVeerLeft = new PathCurve(zero, cp11, cp12, sideVLEnd, 60);
+		int sideVLEnd[2] = {15200, -2200};
+		int cp11[2] = {5500, 0};
+		int cp12[2] = {15200, 3500};
+		path_sideVeerLeft = new PathCurve(zero, cp11, cp12, sideVLEnd, 40);
 
-		int sideVREnd[2] = {13700, 2700};
-		int cp13[2] = {4000, -2000};
-		path_sideVeerRight = new PathCurve(zero, cp13, cp12, sideVREnd, 40);
+		int sideVREnd[2] = {15200, 2200};
+		int cp13[2] = {5500, 0};
+		int cp12_2[2] = {15200, -3500};
+		path_sideVeerRight = new PathCurve(zero, cp13, cp12_2, sideVREnd, 30);
 
-		int sideCLEnd[2] = {6400, -15000};
+		int sideCLEnd[2] = {19200, -14500};
 		int cp14[2] = {7500, 800};
 		int cp15[2] = {7400, -16000};
-		path_sideCrossLeft = new PathCurve(zero, cp14, cp15, sideCLEnd, 40);
+		path_sideCrossLeft = new PathCurve(zero, cp14, cp15, sideCLEnd, CURVE_RES);
 
-		int sideCREnd[2] = {6400, -15000};
+		int sideCREnd[2] = {19200, 14500};
 		int cp16[2] = {7500, -800};
 		int cp17[2] = {7400, 16000};
-		path_sideCrossRight = new PathCurve(zero, cp16, cp17, sideCREnd, 40);
+		path_sideCrossRight = new PathCurve(zero, cp16, cp17, sideCREnd, CURVE_RES);
 
 		int crossAutoEnd[2] = {13000, 0};
-		path_crossAutoLine = new PathLine(zero, crossAutoEnd, 10);
+		path_crossAutoLine = new PathLine(zero, crossAutoEnd, LINE_RES);
 
 		int exchangeEnd[2] = {0, -800};
 		int cp18[2] = {800, 0};
 		int cp19[2] = {800, -800};
-		path_exchange = new PathCurve(zero, cp18, cp19, exchangeEnd, 40);
+		path_exchange = new PathCurve(zero, cp18, cp19, exchangeEnd, CURVE_RES);
 
 		int backupEXLeftEnd[2] = {7000, -8000};
 		int cp20[2] = {6400, -7500};
 		int cp21[2] = {6700, -7750};
-		path_backupEXLeft = new PathCurve(centreLeftEnd, cp20, cp21, backupEXLeftEnd, 40);
+		path_backupEXLeft = new PathCurve(centreLeftEnd, cp20, cp21, backupEXLeftEnd, CURVE_RES);
 
 		int backupEXRightEnd[2] = {7400, 7400};
 		int cp22[2] = {7400,6900};
 		int cp23[2] = {6900,6450};
-		path_backupEXRight = new PathCurve(centreRightEnd, cp22, cp23, backupEXRightEnd, 40);
+		path_backupEXRight = new PathCurve(centreRightEnd, cp22, cp23, backupEXRightEnd, CURVE_RES);
 
 		int exchangeLeft[2] = {7000, -8000};
 		int cp26[2] = {1,2};
 		int cp27[2] = {3,4};
-		path_exchangeLeft = new PathCurve(backupEXLeftEnd, cp26, cp27, exchangeLeft, 40);
+		path_exchangeLeft = new PathCurve(backupEXLeftEnd, cp26, cp27, exchangeLeft, CURVE_RES);
 
 		int exchangeRight[2] = {7400, 7400};
 		int cp24[2] = {5,6};
 		int cp25[2] = {7,8};
-		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, 40);
+		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
-		m_turnPID = new SimPID(0.4, 0, 0.125, 0, 0.9);
+		m_turnPID = new SimPID(0.55, 0, 7.0, 0.0, 0.8775);
 		m_turnPID->setContinuousAngle(true);
-		m_drivePID = new SimPID(0.0005, 0, 0, 0, 200);
+		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(0.8);
-		m_finalTurnPID = new SimPID(0.4, 0, 0.05, 0, 0.9);
+		m_finalTurnPID = new SimPID(0.5, 0, 0, 0, 0.9);
 		m_finalTurnPID->setContinuousAngle(true);
 
-		BBYCAKES = new PathFollower(500, PI/3, m_drivePID, m_turnPID, m_finalTurnPID);
-		BBYCAKES->setIsDegrees(true);
+		METRO = new PathFollower(500, PI/2, m_drivePID, m_turnPID, m_finalTurnPID);
+		METRO->setIsDegrees(true);
 	}
 
 	void DisabledPeriodic() {
@@ -315,7 +321,7 @@ public:
 				triggerTimer->Start();
 				if(triggerTimer->Get() > 4.f)
 					driveState = 1;
-				BBYCAKES->reset();
+				METRO->reset();
 			}
 			else {
 				triggerTimer->Reset();
@@ -336,8 +342,8 @@ public:
 		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Auto Delay: " + std::to_string(autoDelay));
 		DriverStation::ReportError("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
 
-		BBYCAKES->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
-		printf("robot position x: %d\ty:%d\n", BBYCAKES->getXPos(), BBYCAKES->getYPos());
+		METRO->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
+		printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
 	}
 
 	void AutonomousInit() override {
@@ -378,7 +384,7 @@ public:
 				case 'L':
 					switch(autoState) {
 					case 0:
-						BBYCAKES->initPath(path_centreSwitchLeft, PathForward, 90);
+						METRO->initPath(path_centreSwitchLeft, PathForward, 90);
 						autoState++;
 						break;
 					case 1:
@@ -388,17 +394,17 @@ public:
 					case 2:
 						if(autoTimer->Get() > 2.f)
 							autoState++;
-						m_conveyor->Set(1.f);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
-						BBYCAKES->initPath(path_backupEXLeft, PathBackward, 120);
+						m_conveyor->Set(CONVEYOR_SPEED);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
+						METRO->initPath(path_backupEXLeft, PathBackward, 120);
 						break;
 					}
 					break;
 				case 'R':
 					switch(autoState) {
 					case 0:
-						BBYCAKES->initPath(path_centreSwitchRight, PathForward, -90);
+						METRO->initPath(path_centreSwitchRight, PathForward, -90);
 						autoState++;
 						break;
 					case 1:
@@ -409,9 +415,9 @@ public:
 						if(autoTimer->Get() > 2.f)
 							autoState++;
 						m_conveyor->Set(1.f);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
-						BBYCAKES->initPath(path_backupEXRight, PathBackward, -120);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
+						METRO->initPath(path_backupEXRight, PathBackward, -120);
 						break;
 					}
 					break;
@@ -430,24 +436,33 @@ public:
 				case 'L':
 					switch(autoState) {
 					case 0:
-						BBYCAKES->initPath(path_centreSwitchLeft2, PathForward, 0);
+						METRO->initPath(path_centreSwitchLeft2, PathForward, 0);
 						autoState++;
 						break;
 					case 1:
-						if(advancedAutoDrive()) {
+						if(advancedAutoDrive() || autoTimer->Get() > 5.5f) {
 							autoState++;
 							autoTimer->Reset();
 						}
 						break;
 					case 2:
+						if(autoTimer->Get() < 0.25) {
+							m_LFMotor->SetSpeed(-0.5f);
+							m_LBMotor->SetSpeed(-0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+							m_RBMotor->SetSpeed(0.5f);
+						}
 						m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
-						BBYCAKES->initPath(path_backupLeft, PathBackward, 180);
+						METRO->initPath(path_backupLeft, PathBackward, 180);
 						if(autoTimer->Get() > 2.5)
 							autoState++;
 						break;
 					case 3:
+						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+						m_conveyor->SetSpeed(0.f);
 						advancedAutoDrive();
 						break;
 					}
@@ -455,23 +470,34 @@ public:
 				case 'R':
 					switch(autoState) {
 					case 0:
-						BBYCAKES->initPath(path_centreSwitchRight2, PathForward, 0);
+						METRO->initPath(path_centreSwitchRight2, PathForward, 0);
+						autoTimer->Reset();
 						autoState++;
 						break;
 					case 1:
-						if(advancedAutoDrive()) {
+						if(advancedAutoDrive() || autoTimer->Get() > 5.5f) {
 							autoState++;
 							autoTimer->Reset();
 						}
 						break;
 					case 2:
-						m_lowerIntakeL->SetSpeed(-1.f);
-						m_lowerIntakeR->SetSpeed(1.f);
-						BBYCAKES->initPath(path_backupRight, PathBackward, -180);
+						if(autoTimer->Get() < 0.25) {
+							m_LFMotor->SetSpeed(-0.5f);
+							m_LBMotor->SetSpeed(-0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+							m_RBMotor->SetSpeed(0.5f);
+						}
+						m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						m_conveyor->SetSpeed(CONVEYOR_SPEED);
+						METRO->initPath(path_backupRight, PathBackward, -180);
 						if(autoTimer->Get() > 2.5)
 							autoState++;
 						break;
 					case 3:
+						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+						m_conveyor->SetSpeed(0.f);
 						advancedAutoDrive();
 						break;
 					}
@@ -481,12 +507,13 @@ public:
 			case 3: //drive forward from right side and veer left, deploy cube if corresponding side
 				switch(autoState) {
 				case 0:
-					BBYCAKES->initPath(path_sideVeerLeft, PathForward, -90);
+					METRO->initPath(path_sideVeerLeft, PathForward, -90);
 					autoState++;
 					autoTimer->Reset();
 					break;
 				case 1:
-					if(advancedAutoDrive() || autoTimer->Get() > 10.f) {
+//					if(advancedAutoDrive() || autoTimer->Get() > 30.f) {
+					if(advancedAutoDrive()) {
 						autoTimer->Reset();
 						if(plateColour[0] == 'R')
 							autoState++;
@@ -494,26 +521,26 @@ public:
 					break;
 				case 2:
 					if(autoTimer->Get() < 0.3) {
-						m_LFMotor->SetSpeed(-0.9f);
-						m_LBMotor->SetSpeed(-0.9f);
-						m_RFMotor->SetSpeed(0.9f);
-						m_RFMotor->SetSpeed(0.9f);
+						m_LFMotor->SetSpeed(-0.5f);
+						m_LBMotor->SetSpeed(-0.5f);
+						m_RFMotor->SetSpeed(0.5f);
+						m_RFMotor->SetSpeed(0.5f);
 					}
 					m_conveyor->SetSpeed(CONVEYOR_SPEED);
-					m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
-					m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
 					break;
 				}
 				break;
 			case 4: //drive forward from left side and veer right, deploy cube if corresponding side
 				switch(autoState) {
 				case 0:
-					BBYCAKES->initPath(path_sideVeerRight, PathForward, 90);
+					METRO->initPath(path_sideVeerRight, PathForward, 90);
 					autoState++;
 					autoTimer->Reset();
 					break;
 				case 1:
-					if(advancedAutoDrive() || autoTimer->Get() > 10.f) {
+					if(advancedAutoDrive() || autoTimer->Get() > 30.f) {
 						autoTimer->Reset();
 						if(plateColour[0] == 'L')
 							autoState++;
@@ -521,14 +548,14 @@ public:
 					break;
 				case 2:
 					if(autoTimer->Get() < 0.3) {
-						m_LFMotor->SetSpeed(-0.9f);
-						m_LBMotor->SetSpeed(-0.9f);
-						m_RFMotor->SetSpeed(0.9f);
-						m_RFMotor->SetSpeed(0.9f);
+						m_LFMotor->SetSpeed(-0.5f);
+						m_LBMotor->SetSpeed(-0.5f);
+						m_RFMotor->SetSpeed(0.5f);
+						m_RFMotor->SetSpeed(0.5f);
 					}
 					m_conveyor->SetSpeed(CONVEYOR_SPEED);
-					m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
-					m_upperIntakeR->Set(ControlMode::PercentOutput, -1.f);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
 					break;
 				}
 				break;
@@ -537,7 +564,7 @@ public:
 				case 'L':
 					switch(autoState) {
 					case 0:
-						BBYCAKES->initPath(path_sideCrossLeft, PathForward, -270);
+						METRO->initPath(path_sideCrossLeft, PathForward, -270);
 						autoState++;
 						break;
 					case 1:
@@ -560,7 +587,7 @@ public:
 				case 'R':
 					switch(autoState) {
 					case 0:
-						BBYCAKES->initPath(path_sideCrossRight, PathForward, 270);
+						METRO->initPath(path_sideCrossRight, PathForward, 270);
 						autoState++;
 						break;
 					case 1:
@@ -579,10 +606,10 @@ public:
 					break;
 				}
 				break;
-			case 10: //cross auto line from right side or left side
+			case 7: //cross auto line from right side or left side
 				switch(autoState) {
 				case 0:
-					BBYCAKES->initPath(path_crossAutoLine, PathForward, 0);
+					METRO->initPath(path_crossAutoLine, PathForward, 0);
 					autoState++;
 					break;
 				case 1:
@@ -590,10 +617,10 @@ public:
 					break;
 				}
 				break;
-			case 11: //exchange from centre
+			case 8: //exchange from centre
 				switch(autoState) {
 				case 0:
-					BBYCAKES->initPath(path_exchange, PathForward, -180);
+					METRO->initPath(path_exchange, PathForward, -180);
 					autoState++;
 					break;
 				case 1:
@@ -606,7 +633,7 @@ public:
 					break;
 				}
 				break;
-			case 12: //centre switch auto, then exchange
+			case 9: //centre switch auto, then exchange
 				switch(autoState) {
 				case 0:
 					autoRunTwelve = true;
@@ -621,7 +648,7 @@ public:
 				case 'L':
 					switch(autoState) {
 					case 4:
-						BBYCAKES->initPath(path_exchangeLeft, PathForward, 180);
+						METRO->initPath(path_exchangeLeft, PathForward, 180);
 						autoState++;
 						break;
 					case 5:
@@ -639,7 +666,7 @@ public:
 				case 'R':
 					switch(autoState) {
 					case 4:
-						BBYCAKES->initPath(path_exchangeRight, PathForward, -180);
+						METRO->initPath(path_exchangeRight, PathForward, -180);
 						autoState++;
 						break;
 					case 5:
@@ -726,14 +753,14 @@ public:
 
 	bool advancedAutoDrive() {
 		float leftSpeed, rightSpeed;
-		if(BBYCAKES->followPathByEnc(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw(), leftSpeed, rightSpeed) == 0){
+		if(METRO->followPathByEnc(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw(), leftSpeed, rightSpeed) == 0){
 			m_LFMotor->SetSpeed(leftSpeed);
 			m_LBMotor->SetSpeed(leftSpeed);
 			m_RFMotor->SetSpeed(rightSpeed);
 			m_RBMotor->SetSpeed(rightSpeed);
 		}
 		printf("path follow left: %f, right: %f\n", leftSpeed, rightSpeed);
-		return BBYCAKES->isDone();
+		return METRO->isDone();
 	}
 
 	void arcadeDrive() {

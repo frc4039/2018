@@ -122,6 +122,8 @@ int PathFollower::followPath(float &nLeftSpeed, float &nRightSpeed){
 		driveSpeed = invertDrive*direction*drivePID->calcPID(driveError) * (1 - limit(fabs(turnPID->getError())/maxTurnError, 1.f));
 		driveToPoint();
 
+		printf("turn error: %f, turnLimiter: %f, \n", turnPID->getError(), (1 - limit(fabs(turnPID->getError())/maxTurnError, 1.f)));
+
 		nLeftSpeed = -turnSpeed + driveSpeed;
 		nRightSpeed = -turnSpeed - driveSpeed;
 	}
