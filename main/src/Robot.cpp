@@ -53,12 +53,13 @@
 #define LINE_RES 10
 
 //#define AUX_PWM
-#define PRACTICE_BOT
+//#define PRACTICE_BOT
 
 class Robot: public frc::IterativeRobot {
 public:
 
 	//declare class members/variables
+	PowerDistributionPanel *m_PDP;
 
 	Joystick *m_Joystick;
 	Joystick *m_Joystick2;
@@ -73,8 +74,8 @@ public:
 	Solenoid *m_shiftLow;
 	Solenoid *m_shiftHigh;
 
-	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState, conveyorState;
-	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
+	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState, conveyorState, indicatorState;
+	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve, twoCubeMode, currentError;
 	float currentGTime;
 
 	XboxController *m_GamepadOp;
@@ -107,8 +108,14 @@ public:
 	Timer *triggerTimer;
 	Timer *intakeTimer;
 	Timer *gripperTimer;
+	Timer *indicatorTimer;
+	Timer *brownTimer;
 
 	Servo *m_tailgateServo;
+
+	DigitalInput *m_beamSensorLower;
+
+	Relay *m_mangoRingLight;
 
 	//====================Pathfollow Variables==================
 	PathFollower *METRO;
@@ -125,6 +132,8 @@ public:
 	Path *path_exchange;
 	//exchange after center auto
 	Path *path_backupEXRight, *path_backupEXLeft, *path_exchangeRight, *path_exchangeLeft;
+	//two cube auto
+	Path *path_twoCubeBackupRight, *path_twoCubeBackupLeft, *path_twoCubePickup, *path_twoCubeBackupLine, *path_twoCubeShootRight, *path_twoCubeShootLeft;
 
 /*	static void VisionThread()
     {
@@ -142,14 +151,12 @@ public:
     }*/
 
 	void RobotInit() {
+		m_PDP = new PowerDistributionPanel(0);
+
 		m_LFMotor = new VictorSP(9); // The place where you initialize your variables to their victors and which port on the RoboRio/computer
-		m_LFMotor->SetSafetyEnabled(true);
 		m_LBMotor = new VictorSP(8); // ^
-		m_LBMotor->SetSafetyEnabled(true);
 		m_RFMotor = new VictorSP(7); // ^
-		m_RFMotor->SetSafetyEnabled(true);
 		m_RBMotor = new VictorSP(6); // ^
-		m_RBMotor->SetSafetyEnabled(true);
 
 		CameraServer::GetInstance()->StartAutomaticCapture();
 
@@ -179,12 +186,15 @@ public:
 		m_squareRetract = new Solenoid(7);
 
 		m_tailgateServo = new Servo(4);
+		m_beamSensorLower = new DigitalInput(4);
 
 		m_leftEncoder = new Encoder(0,1);
 		m_rightEncoder = new Encoder(2,3);
 
 		nav = new AHRS(SPI::Port::kMXP);
 		nav->Reset();
+
+		m_mangoRingLight = new Relay(3);
 
 		autoTimer = new Timer();
 		autoTimer->Reset();
@@ -206,9 +216,18 @@ public:
 		gripperTimer->Reset();
 		gripperTimer->Stop();
 
+		indicatorTimer = new Timer();
+		indicatorTimer->Reset();
+		indicatorTimer->Stop();
+
+		brownTimer = new Timer();
+		brownTimer->Reset();
+		brownTimer->Stop();
+
 		driveState = 1;
 		cheezyState = 1;
 		lowerIntakeState = 0;
+		indicatorState = 0;
 		autoMode = 0;
 		autoState = 0;
 		autoDelay = 0;
@@ -218,6 +237,7 @@ public:
 		climberToggleState1 = false;
 		climberToggleState2 = false;
 		autoRunTwelve = false;
+		currentError = false;
 
 		//================Define Auto Paths===============
 		int zero[2] = {0, 0}; //starting point for all auto cases.
@@ -256,7 +276,7 @@ public:
 		int sideVREnd[2] = {15200, 2200};
 		int cp13[2] = {5500, 0};
 		int cp12_2[2] = {15200, -3500};
-		path_sideVeerRight = new PathCurve(zero, cp13, cp12_2, sideVREnd, 30);
+		path_sideVeerRight = new PathCurve(zero, cp13, cp12_2, sideVREnd, 40);
 
 		int sideCLEnd[2] = {19200, -14500};
 		int cp14[2] = {7500, 800};
@@ -296,6 +316,21 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
+		int backupTwoCubeEnd[2] = {4500, -700};
+		int cp28[2] = {4000, 5000};
+		int cp29[2] = {8700, -1000};
+		path_twoCubeBackupRight = new PathCurve(centreRightEnd2, cp28, cp29, backupTwoCubeEnd, CURVE_RES);
+		path_twoCubeShootRight = new PathCurve(backupTwoCubeEnd, cp29, cp28, centreRightEnd2, CURVE_RES);
+
+		int cp30[2] = {4000, -6000};
+		int cp31[2] = {8000, -550};
+		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES);
+		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp31, cp30, centreLeftEnd2, CURVE_RES);
+
+		int pickupTwoCubeEnd[2] = {6900, -700};
+		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 3);
+		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 3);
+
 		m_turnPID = new SimPID(0.55, 0, 7.0, 0.0, 0.8775);
 		m_turnPID->setContinuousAngle(true);
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
@@ -303,7 +338,7 @@ public:
 		m_finalTurnPID = new SimPID(0.5, 0, 0, 0, 0.9);
 		m_finalTurnPID->setContinuousAngle(true);
 
-		METRO = new PathFollower(500, PI/2, m_drivePID, m_turnPID, m_finalTurnPID);
+		METRO = new PathFollower(500, PI/4, m_drivePID, m_turnPID, m_finalTurnPID);
 		METRO->setIsDegrees(true);
 	}
 
@@ -337,6 +372,9 @@ public:
 		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kRightHand))
 			driveState = 2;
 
+		if(m_beamSensorLower->Get())
+			DriverStation::ReportError("BEAM SENSOR TRUE");
+
 		autoDelay = -5*(m_Joystick->GetRawAxis(3) - 1);
 		DriverStation::ReportError("Left Encoder: " + std::to_string(LRead) + " | Right Encoder: " + std::to_string(RRead) + " | Gyro: " + std::to_string(GRead));
 		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Auto Delay: " + std::to_string(autoDelay));
@@ -369,6 +407,7 @@ public:
 		m_shiftHigh->Set(false);
 		autoState = 0;
 		autoRunTwelve = false;
+		twoCubeMode = false;
 		autoTimer->Reset();
 		autoTimer->Start();
 		delayTimer->Reset();
@@ -437,27 +476,41 @@ public:
 					switch(autoState) {
 					case 0:
 						METRO->initPath(path_centreSwitchLeft2, PathForward, 0);
+						twoCubeMode = false;
 						autoState++;
 						break;
 					case 1:
-						if(advancedAutoDrive() || autoTimer->Get() > 5.5f) {
+						if(advancedAutoDrive()) {
 							autoState++;
 							autoTimer->Reset();
 						}
 						break;
 					case 2:
-						if(autoTimer->Get() < 0.25) {
+						if(autoTimer->Get() < 1.2f) {
 							m_LFMotor->SetSpeed(-0.5f);
 							m_LBMotor->SetSpeed(-0.5f);
 							m_RFMotor->SetSpeed(0.5f);
 							m_RBMotor->SetSpeed(0.5f);
 						}
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+						}
+						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
-						METRO->initPath(path_backupLeft, PathBackward, 180);
-						if(autoTimer->Get() > 2.5)
+						if(!twoCubeMode)
+							METRO->initPath(path_backupLeft, PathBackward, 180);
+
+						if(autoTimer->Get() > 2.5) {
+							if(twoCubeMode) {
+								METRO->initPath(path_twoCubeBackupLeft, PathBackward, 0);
+								autoMode = 7;
+							}
 							autoState++;
+						}
 						break;
 					case 3:
 						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
@@ -475,24 +528,34 @@ public:
 						autoState++;
 						break;
 					case 1:
-						if(advancedAutoDrive() || autoTimer->Get() > 5.5f) {
+						if(advancedAutoDrive()) {
 							autoState++;
 							autoTimer->Reset();
 						}
 						break;
 					case 2:
-						if(autoTimer->Get() < 0.25) {
+						if(autoTimer->Get() < 1.2f) {
 							m_LFMotor->SetSpeed(-0.5f);
 							m_LBMotor->SetSpeed(-0.5f);
 							m_RFMotor->SetSpeed(0.5f);
 							m_RBMotor->SetSpeed(0.5f);
 						}
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+						}
+						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
 						METRO->initPath(path_backupRight, PathBackward, -180);
-						if(autoTimer->Get() > 2.5)
+						if(autoTimer->Get() > 2.5) {
+							if(twoCubeMode)
+								METRO->initPath(path_twoCubeBackupRight, PathBackward, 0);
+								autoMode = 7;
 							autoState++;
+						}
 						break;
 					case 3:
 						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
@@ -504,7 +567,7 @@ public:
 					break;
 				}
 				break;
-			case 3: //drive forward from right side and veer left, deploy cube if corresponding side
+			case 3: //drive forward from right side and veer left, deploy cube if corresponding side ...right side
 				switch(autoState) {
 				case 0:
 					METRO->initPath(path_sideVeerLeft, PathForward, -90);
@@ -520,14 +583,20 @@ public:
 					}
 					break;
 				case 2:
-					if(autoTimer->Get() < 0.3) {
+					if(autoTimer->Get() < 1.2f) {
 						m_LFMotor->SetSpeed(-0.5f);
 						m_LBMotor->SetSpeed(-0.5f);
 						m_RFMotor->SetSpeed(0.5f);
 						m_RFMotor->SetSpeed(0.5f);
 					}
+					else {
+						m_LFMotor->SetSpeed(0.f);
+						m_LBMotor->SetSpeed(0.f);
+						m_RFMotor->SetSpeed(0.f);
+						m_RBMotor->SetSpeed(0.f);
+					}
 					m_conveyor->SetSpeed(CONVEYOR_SPEED);
-					m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
 					m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
 					break;
 				}
@@ -547,14 +616,20 @@ public:
 					}
 					break;
 				case 2:
-					if(autoTimer->Get() < 0.3) {
+					if(autoTimer->Get() < 1.2f) {
 						m_LFMotor->SetSpeed(-0.5f);
 						m_LBMotor->SetSpeed(-0.5f);
 						m_RFMotor->SetSpeed(0.5f);
 						m_RFMotor->SetSpeed(0.5f);
 					}
+					else {
+						m_LFMotor->SetSpeed(0.f);
+						m_LBMotor->SetSpeed(0.f);
+						m_RFMotor->SetSpeed(0.f);
+						m_RBMotor->SetSpeed(0.f);
+					}
 					m_conveyor->SetSpeed(CONVEYOR_SPEED);
-					m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
 					m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
 					break;
 				}
@@ -606,15 +681,76 @@ public:
 					break;
 				}
 				break;
-			case 7: //cross auto line from right side or left side
+			case 7: //similar to auto 2, but grabs another cube. And shoots it. It's pretty cool if I do say so myself.
 				switch(autoState) {
 				case 0:
-					METRO->initPath(path_crossAutoLine, PathForward, 0);
-					autoState++;
+					twoCubeMode = true;
+					autoMode = 2;
 					break;
-				case 1:
-					advancedAutoDrive();
+				case 3:
+					m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+					m_conveyor->SetSpeed(0.f);
+					if(advancedAutoDrive()) {
+						autoState++;
+						METRO->initPath(path_twoCubePickup, PathForward, 0);
+						gripperTimer->Reset();
+						gripperTimer->Start();
+					}
 					break;
+				case 4:
+					m_lowerIntakeL->SetSpeed(-0.5f);
+					m_lowerIntakeR->SetSpeed(-0.5f);
+					m_gripperRetract->Set(true);
+					m_gripperExtend->Set(false);
+					if(gripperTimer->Get() > 0.5f) {
+						m_squareExtend->Set(false);
+						m_squareRetract->Set(true);
+						gripperTimer->Reset();
+					}
+					if(advancedAutoDrive()) {
+						autoState++;
+						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
+						autoTimer->Reset();
+						autoTimer->Start();
+					}
+					break;
+				case 5:
+					m_gripperExtend->Set(false);
+					m_gripperRetract->Set(true);
+					m_squareExtend->Set(true);
+					m_squareRetract->Set(false);
+					if(autoTimer->Get() > 1.f) {
+						m_lowerIntakeL->SetSpeed(0.f);
+						m_lowerIntakeR->SetSpeed(0.f);
+					}
+					if(advancedAutoDrive()) {
+						switch(plateColour[0]) {
+						case 'L':
+							METRO->initPath(path_twoCubeShootLeft, PathForward, 0);
+							break;
+						case 'R':
+							METRO->initPath(path_twoCubeShootRight, PathForward, 0);
+							break;
+						}
+						autoState++;
+					}
+					break;
+				case 6:
+					m_gripperUp->Set(true);
+					m_gripperDown->Set(false);
+					if(advancedAutoDrive()) {
+						m_lowerIntakeL->SetSpeed(0.25f);
+						m_lowerIntakeR->SetSpeed(0.25f);
+						autoTimer->Reset();
+						autoState++;
+					}
+					break;
+				case 7:
+					if(autoTimer->Get() > 1.f) {
+						m_lowerIntakeL->SetSpeed(0.f);
+						m_lowerIntakeR->SetSpeed(0.f);
+					}
 				}
 				break;
 			case 8: //exchange from centre
@@ -700,7 +836,10 @@ public:
 		m_gripperUp->Set(false);
 		gripperTimer->Reset();
 		gripperTimer->Start();
+		brownTimer->Reset();
+		brownTimer->Start();
 		currentGTime = 0.f;
+		indicatorState = 0;
 	}
 
 	void TeleopPeriodic() {
@@ -718,9 +857,9 @@ public:
 		}
 		operateIntake();
 		operateGripperPneumatics();
-		climber();
 		operateConveyor();
 		applesServo();
+		indicateCube();
 	}
 
 	void arcadeShift() {
@@ -772,10 +911,17 @@ public:
 		joyX = -limit(expo(m_Joystick->GetX(), 3)); // Getting the X position from the joystick
 		joyY = -limit(expo(m_Joystick->GetY(), 2)); // Getting the Y position from the joystick
 
-		m_LFMotor->SetSpeed(-joyY + joyX);
-		m_LBMotor->SetSpeed(-joyY + joyX);
-		m_RFMotor->SetSpeed(joyY + joyX);
-		m_RBMotor->SetSpeed(joyY + joyX);
+//		else if((brownTimer->Get() > 1.5f && currentError) || !currentError) {
+			m_LFMotor->SetSpeed(-joyY + joyX);
+			m_LBMotor->SetSpeed(-joyY + joyX);
+			m_RFMotor->SetSpeed(joyY + joyX);
+			m_RBMotor->SetSpeed(joyY + joyX);
+//			currentError = false;
+//		}
+	}
+
+	bool checkCurrent(float current) {
+		return (m_PDP->GetCurrent(15) > current || m_PDP->GetCurrent(14) > current || m_PDP->GetCurrent(13) > current || m_PDP->GetCurrent(12) > current);
 	}
 
 	void cheezyIntake() {
@@ -829,7 +975,7 @@ public:
 				conveyorState = 0;
 
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
-			m_upperIntakeL->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+			m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
 			m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 			break;
 		}
@@ -872,16 +1018,19 @@ public:
 		if(m_GamepadOp->GetBButton()) {
 			m_gripperRetract->Set(true);
 			m_gripperExtend->Set(false);
-			m_squareExtend->Set(false);
-			m_squareRetract->Set(true);
-			currentGTime = gripperTimer->Get();
+			if(gripperTimer->Get() > 0.5f) {
+				m_squareExtend->Set(false);
+				m_squareRetract->Set(true);
+				gripperTimer->Reset();
+			}
 		}
 		else {
 			m_squareExtend->Set(true);
 			m_squareRetract->Set(false);
-			if(gripperTimer->Get() > currentGTime + 0.5f) {
+			if(gripperTimer->Get() > 0.5f) {
 				m_gripperRetract->Set(false);
 				m_gripperExtend->Set(true);
+				gripperTimer->Reset();
 			}
 		}
 
@@ -916,8 +1065,37 @@ public:
 		m_RBMotor->SetSpeed(joy1Y - joy2X);
 	}
 
-	void climber() {
-
+	void indicateCube() {
+		switch(indicatorState) {
+		case 0:
+			m_mangoRingLight->Set(Relay::kOff);
+			if(!m_beamSensorLower->Get()) {
+				indicatorTimer->Reset();
+				indicatorTimer->Start();
+				indicatorState++;
+			}
+			break;
+		case 1:
+			if(indicatorTimer->Get() < 0.2f)
+				m_mangoRingLight->Set(Relay::kForward);
+			if(indicatorTimer->Get() > 0.2f)
+				m_mangoRingLight->Set(Relay::kOff);
+			if(indicatorTimer->Get() > 0.4f)
+				m_mangoRingLight->Set(Relay::kForward);
+			if(indicatorTimer->Get() > 0.6f)
+				m_mangoRingLight->Set(Relay::kOff);
+			if(indicatorTimer->Get() > 0.8f)
+				m_mangoRingLight->Set(Relay::kForward);
+			if(indicatorTimer->Get() > 1.f) {
+				m_mangoRingLight->Set(Relay::kOff);
+				indicatorState++;
+			}
+			break;
+		case 2:
+			if(m_beamSensorLower->Get()) {
+				indicatorState = 0;
+			}
+		}
 	}
 
 // #.f is used to tell the computer that the number here is not a whole number(1).
