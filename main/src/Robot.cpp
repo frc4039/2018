@@ -81,8 +81,8 @@ public:
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
 
-	Solenoid *m_gripperRetract;
 	Solenoid *m_gripperExtend;
+	Solenoid *m_gripperRetract;
 	Solenoid *m_gripperUp;
 	Solenoid *m_gripperDown;
 	Solenoid *m_squareExtend;
@@ -178,12 +178,12 @@ public:
 
 		m_shiftLow = new Solenoid(0);
 		m_shiftHigh = new Solenoid(1);
-		m_gripperExtend = new Solenoid(2);
-		m_gripperRetract = new Solenoid(3);
+		m_gripperRetract = new Solenoid(2);
+		m_gripperExtend = new Solenoid(3);
 		m_gripperUp = new Solenoid(5);
 		m_gripperDown = new Solenoid(4);
-		m_squareExtend = new Solenoid(6);
-		m_squareRetract = new Solenoid(7);
+		m_squareExtend = new Solenoid(7);
+		m_squareRetract = new Solenoid(6);
 
 		m_tailgateServo = new Servo(4);
 		m_beamSensorLower = new DigitalInput(4);
@@ -258,7 +258,7 @@ public:
 		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, CURVE_RES);
 		int cp7[2] = {4400, -12700};
 		int backupLEnd[2] = {24200, -12600};
-		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, backupLEnd, CURVE_RES);
+		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, backupLEnd, 20);
 
 		int centreRightEnd2[2] = {9500, 4400};
 		int cp8[2] = {3000, 0};
@@ -266,7 +266,7 @@ public:
 		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, CURVE_RES);
 		int cp10[2] = {4400, 9700};
 		int backupREnd[2] = {24200, 9600};
-		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, backupREnd, CURVE_RES);
+		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, backupREnd, 20);
 
 		int sideVLEnd[2] = {15200, -2200};
 		int cp11[2] = {5500, 0};
@@ -302,8 +302,8 @@ public:
 		path_backupEXLeft = new PathCurve(centreLeftEnd, cp20, cp21, backupEXLeftEnd, CURVE_RES);
 
 		int backupEXRightEnd[2] = {7400, 7400};
-		int cp22[2] = {7400,6900};
-		int cp23[2] = {6900,6450};
+		int cp22[2] = {7400, 6900};
+		int cp23[2] = {6900, 6450};
 		path_backupEXRight = new PathCurve(centreRightEnd, cp22, cp23, backupEXRightEnd, CURVE_RES);
 
 		int exchangeLeft[2] = {7000, -8000};
@@ -327,11 +327,11 @@ public:
 		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES);
 		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp31, cp30, centreLeftEnd2, CURVE_RES);
 
-		int pickupTwoCubeEnd[2] = {6900, -700};
+		int pickupTwoCubeEnd[2] = {9000, -700};
 		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 3);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 3);
 
-		m_turnPID = new SimPID(0.55, 0, 7.0, 0.0, 0.8775);
+		m_turnPID = new SimPID(0.75, 0, 0.9, 0.0, 0.5);
 		m_turnPID->setContinuousAngle(true);
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(0.8);
@@ -396,10 +396,10 @@ public:
 		m_lowerIntakeR->SetSpeed(0.f);
 		m_gripperDown->Set(true);
 		m_gripperUp->Set(false);
-		m_squareExtend->Set(true);
-		m_squareRetract->Set(false);
-		m_gripperRetract->Set(false);
-		m_gripperExtend->Set(true);
+		m_squareExtend->Set(false);
+		m_squareRetract->Set(true);
+		m_gripperExtend->Set(false);
+		m_gripperRetract->Set(true);
 		m_leftEncoder->Reset();
 		m_rightEncoder->Reset();
 		nav->Reset();
@@ -476,7 +476,6 @@ public:
 					switch(autoState) {
 					case 0:
 						METRO->initPath(path_centreSwitchLeft2, PathForward, 0);
-						twoCubeMode = false;
 						autoState++;
 						break;
 					case 1:
@@ -549,7 +548,10 @@ public:
 						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
-						METRO->initPath(path_backupRight, PathBackward, -180);
+
+						if(!twoCubeMode)
+							METRO->initPath(path_backupRight, PathBackward, -180);
+
 						if(autoTimer->Get() > 2.5) {
 							if(twoCubeMode)
 								METRO->initPath(path_twoCubeBackupRight, PathBackward, 0);
@@ -696,34 +698,32 @@ public:
 						METRO->initPath(path_twoCubePickup, PathForward, 0);
 						gripperTimer->Reset();
 						gripperTimer->Start();
+						m_drivePID->setMaxOutput(0.7);
 					}
 					break;
 				case 4:
-					m_lowerIntakeL->SetSpeed(-0.5f);
-					m_lowerIntakeR->SetSpeed(-0.5f);
-					m_gripperRetract->Set(true);
-					m_gripperExtend->Set(false);
-					if(gripperTimer->Get() > 0.5f) {
-						m_squareExtend->Set(false);
-						m_squareRetract->Set(true);
+					m_gripperExtend->Set(true);
+					m_gripperRetract->Set(false);
+					if(gripperTimer->Get() > 1.f) {
+						m_lowerIntakeL->SetSpeed(-0.8f);
+						m_lowerIntakeR->SetSpeed(-0.8f);
 						gripperTimer->Reset();
 					}
-					if(advancedAutoDrive()) {
+					advancedAutoDrive();
+					if(!m_beamSensorLower->Get()) {
 						autoState++;
 						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
+						m_drivePID->setMaxOutput(0.9);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
 					break;
 				case 5:
-					m_gripperExtend->Set(false);
 					m_gripperRetract->Set(true);
-					m_squareExtend->Set(true);
-					m_squareRetract->Set(false);
-					if(autoTimer->Get() > 1.f) {
-						m_lowerIntakeL->SetSpeed(0.f);
-						m_lowerIntakeR->SetSpeed(0.f);
-					}
+					m_gripperExtend->Set(false);
+					m_lowerIntakeL->SetSpeed(0.f);
+					m_lowerIntakeR->SetSpeed(0.f);
+
 					if(advancedAutoDrive()) {
 						switch(plateColour[0]) {
 						case 'L':
@@ -817,6 +817,11 @@ public:
 						break;
 					}
 					break;
+				case 12:
+					switch(autoState) {
+					case 0:
+						break;
+					}
 				}
 			}
 		}
@@ -971,7 +976,7 @@ public:
 			m_conveyor->SetSpeed(conveyorJoy);
 			break;
 		case 10:
-			if(!m_GamepadOp->GetAButton())
+			if(m_GamepadOp->GetAButtonReleased())
 				conveyorState = 0;
 
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
@@ -990,12 +995,12 @@ public:
 
 	void cheezyGripperPneumatics() {
 		if(m_GamepadDr->GetBumper(XboxController::kRightHand)) {
-			m_gripperRetract->Set(true);
-			m_gripperExtend->Set(false);
+			m_gripperExtend->Set(true);
+			m_gripperRetract->Set(false);
 		}
 		else {
-			m_gripperRetract->Set(false);
-			m_gripperExtend->Set(true);
+			m_gripperExtend->Set(false);
+			m_gripperRetract->Set(true);
 		}
 
 		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && !intakeToggleState1) {
@@ -1015,23 +1020,51 @@ public:
 	}
 
 	void operateGripperPneumatics() {
-		if(m_GamepadOp->GetBButton()) {
-			m_gripperRetract->Set(true);
+		switch(lowerIntakeState) {
+		case 0:
+			m_squareExtend->Set(false);
+			m_squareRetract->Set(true);
 			m_gripperExtend->Set(false);
-			if(gripperTimer->Get() > 0.5f) {
+			m_gripperRetract->Set(true);
+			if(m_GamepadOp->GetBButton()) {
+				lowerIntakeState++;
+				gripperTimer->Reset();
+			}
+			break;
+		case 1:
+			m_gripperExtend->Set(true);
+			m_gripperRetract->Set(false);
+			if(gripperTimer->Get() > 0.8f) {
+				m_squareExtend->Set(true);
+				m_squareRetract->Set(false);
+			}
+			if(m_GamepadOp->GetBButtonReleased())
+				lowerIntakeState++;
+			break;
+		case 2:
+			if(m_GamepadOp->GetXButton()) {
 				m_squareExtend->Set(false);
 				m_squareRetract->Set(true);
+			}
+			else {
+				m_squareExtend->Set(true);
+				m_squareRetract->Set(false);
+			}
+			if(m_GamepadOp->GetBButton()) {
+				lowerIntakeState++;
 				gripperTimer->Reset();
 			}
-		}
-		else {
-			m_squareExtend->Set(true);
-			m_squareRetract->Set(false);
-			if(gripperTimer->Get() > 0.5f) {
-				m_gripperRetract->Set(false);
-				m_gripperExtend->Set(true);
-				gripperTimer->Reset();
+			break;
+		case 3:
+			m_squareExtend->Set(false);
+			m_squareRetract->Set(true);
+			if(gripperTimer->Get() > 0.8f) {
+				m_gripperExtend->Set(false);
+				m_gripperRetract->Set(true);
 			}
+			if(m_GamepadOp->GetBButtonReleased())
+				lowerIntakeState = 0;
+			break;
 		}
 
 		if(m_GamepadOp->GetPOV(0) == GP_UP) {
