@@ -499,7 +499,7 @@ public:
 							m_RBMotor->SetSpeed(0.f);
 						}
 						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
 						if(!twoCubeMode)
 							METRO->initPath(path_backupLeft, PathBackward, 180);
@@ -562,7 +562,7 @@ public:
 							m_RBMotor->SetSpeed(0.f);
 						}
 						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
 
 						if(!twoCubeMode)
@@ -633,7 +633,7 @@ public:
 					if(autoTimer->Get() < 3.f) {
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
 						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
 					}
 					else {
 						m_conveyor->SetSpeed(0.f);
@@ -674,7 +674,7 @@ public:
 					if(autoTimer->Get() < 3.f) {
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
 						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
 					}
 					else {
 						m_conveyor->SetSpeed(0.f);
@@ -1055,7 +1055,7 @@ public:
 
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
 			m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
-			m_upperIntakeR->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+			m_upperIntakeR->Set(ControlMode::PercentOutput, UPPER_SPEED);
 			break;
 		}
 	}
@@ -1143,7 +1143,7 @@ public:
 		if(m_GamepadOp->GetBButton()) {
 			m_gripperExtend->Set(true);
 			m_gripperRetract->Set(false);
-			if(gripperTimer->Get() > 1.2f) {
+			if(gripperTimer->Get() > 0.5f) {
 				m_squareExtend->Set(true);
 				m_squareRetract->Set(false);
 			}
@@ -1153,7 +1153,7 @@ public:
 			m_gripperRetract->Set(true);
 			m_squareExtend->Set(false);
 			m_squareRetract->Set(true);
-			gripperTimer->Get();
+			gripperTimer->Reset();
 		}
 
 		if(m_GamepadOp->GetPOV(0) == GP_UP) {
