@@ -74,8 +74,10 @@ public:
 	Solenoid *m_shiftLow;
 	Solenoid *m_shiftHigh;
 
-	int autoState, autoMode, autoDelay, driveState, cheezyState, lowerIntakeState, conveyorState, indicatorState;
-	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve, twoCubeMode, currentError, joyBlues;
+	int autoState, autoMode, autoDelay, conveyorState, indicatorState;
+	int driveState, cheezyState, lowerIntakeState;
+//	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
+	bool twoCubeMode, currentError, joyBlues;
 	float currentGTime;
 
 	XboxController *m_GamepadOp;
@@ -204,9 +206,9 @@ public:
 		delayTimer->Reset();
 		delayTimer->Stop();
 
-		triggerTimer = new Timer();
+/*		triggerTimer = new Timer();
 		triggerTimer->Reset();
-		triggerTimer->Stop();
+		triggerTimer->Stop();*/
 
 		intakeTimer = new Timer();
 		intakeTimer->Reset();
@@ -232,11 +234,11 @@ public:
 		autoState = 0;
 		autoDelay = 0;
 		conveyorState = 0;
-		shiftToggleState1 = false;
-		shiftToggleState2 = false;
-		climberToggleState1 = false;
-		climberToggleState2 = false;
-		autoRunTwelve = false;
+//		shiftToggleState1 = false;
+//		shiftToggleState2 = false;
+//		climberToggleState1 = false;
+//		climberToggleState2 = false;
+//		autoRunTwelve = false;
 		currentError = false;
 		joyBlues = false;
 
@@ -354,24 +356,24 @@ public:
 				nav->Reset();
 				m_leftEncoder->Reset();
 				m_rightEncoder->Reset();
-				triggerTimer->Start();
+/*				triggerTimer->Start();
 				if(triggerTimer->Get() > 4.f)
-					driveState = 1;
+					driveState = 1;*/
 				METRO->reset();
 			}
-			else {
+/*			else {
 				triggerTimer->Reset();
 				triggerTimer->Stop();
-			}
+			}*/
 		}
 
-		for(int i = 1; i <= 2; i++) {
+/*		for(int i = 1; i <= 2; i++) {
 			if(m_GamepadDr->GetRawButton(i))
 				cheezyState = i;
 		}
 
 		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kRightHand))
-			driveState = 2;
+			driveState = 2;*/
 
 		if(m_beamSensorLower->Get())
 			DriverStation::ReportError("BEAM SENSOR TRUE");
@@ -379,7 +381,7 @@ public:
 		autoDelay = -5*(m_Joystick->GetRawAxis(3) - 1);
 		DriverStation::ReportError("Left Encoder: " + std::to_string(LRead) + " | Right Encoder: " + std::to_string(RRead) + " | Gyro: " + std::to_string(GRead));
 		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Auto Delay: " + std::to_string(autoDelay));
-		DriverStation::ReportError("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
+//		DriverStation::ReportError("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
 
 		METRO->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
 		printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
@@ -407,7 +409,7 @@ public:
 		m_shiftLow->Set(true);
 		m_shiftHigh->Set(false);
 		autoState = 0;
-		autoRunTwelve = false;
+//		autoRunTwelve = false;
 		twoCubeMode = false;
 		autoTimer->Reset();
 		autoTimer->Start();
@@ -419,7 +421,7 @@ public:
 	void AutonomousPeriodic() {
 		if(delayTimer->Get() > autoDelay) {
 			switch(autoMode) {
-			case 1: //start from centre, deploy cubes on sides of switch
+/*			case 1: //start from centre, deploy cubes on sides of switch
 				switch(plateColour[0]) {
 				case 'L':
 					switch(autoState) {
@@ -469,6 +471,17 @@ public:
 					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 					if(autoRunTwelve)
 						autoMode = 12;
+				}
+				break;*/
+			case 1:
+				switch(autoState) {
+				case 0:
+					METRO->initPath(path_crossAutoLine, PathForward, 0);
+					autoState++;
+					break;
+				case 1:
+					advancedAutoDrive();
+					break;
 				}
 				break;
 			case 2: //deploy cube on close face of the switch
@@ -684,7 +697,7 @@ public:
 					break;
 				}
 				break;
-			case 5: //drive up right side, if corresponding side, run auto 3, if not, cross to left side
+/*			case 5: //drive up right side, if corresponding side, run auto 3, if not, cross to left side
 				switch(plateColour[0]) {
 				case 'L':
 					switch(autoState) {
@@ -706,8 +719,8 @@ public:
 				case 'R':
 					autoMode = 3;
 				}
-				break;
-			case 6: //drive up left side, if corresponding side, run auto 4, if not, cross to right side
+				break;*/
+/*			case 6: //drive up left side, if corresponding side, run auto 4, if not, cross to right side
 				switch(plateColour[0]) {
 				case 'R':
 					switch(autoState) {
@@ -730,8 +743,8 @@ public:
 					autoMode = 4;
 					break;
 				}
-				break;
-			case 7: //similar to auto 2, but grabs another cube. And shoots it. It's pretty cool if I do say so myself.
+				break;*/
+			case 7: //similar to auto 2, but grabs another cube. And shoots it. It's pretty cool if I do say so myself. apple
 				switch(autoState) {
 				case 0:
 					twoCubeMode = true;
@@ -798,8 +811,8 @@ public:
 					break;
 				case 7:
 					if(autoTimer->Get() > 0.7f) {
-						m_lowerIntakeL->SetSpeed(0.25f);
-						m_lowerIntakeR->SetSpeed(0.25f);
+						m_lowerIntakeL->SetSpeed(0.5f);
+						m_lowerIntakeR->SetSpeed(0.5f);
 						m_LFMotor->SetSpeed(0.f);
 						m_LBMotor->SetSpeed(0.f);
 						m_RFMotor->SetSpeed(0.f);
@@ -811,7 +824,7 @@ public:
 					}
 				}
 				break;
-			case 8: //exchange from centre
+/*			case 8: //exchange from centre
 				switch(autoState) {
 				case 0:
 					METRO->initPath(path_exchange, PathForward, -180);
@@ -826,8 +839,8 @@ public:
 					m_lowerIntakeR->SetSpeed(1.f);
 					break;
 				}
-				break;
-			case 9: //centre switch auto, then exchange
+				break;*/
+/*			case 9: //centre switch auto, then exchange
 				switch(autoState) {
 				case 0:
 					autoRunTwelve = true;
@@ -875,17 +888,8 @@ public:
 						break;
 					}
 					break;
-				case 12:
-					switch(autoState) {
-					case 0:
-						METRO->initPath(path_crossAutoLine, PathForward, 0);
-						autoState++;
-						break;
-					case 1:
-						advancedAutoDrive();
-						break;
-					}
 				}
+				break;*/
 			}
 		}
 	}
@@ -912,22 +916,22 @@ public:
 	}
 
 	void TeleopPeriodic() {
-		switch(driveState) {
-		case 1:
-			arcadeDrive();
-			arcadeShift();
-			break;
+/*		switch(driveState) {
+		case 1:*/
+		arcadeDrive();
+		arcadeShift();
+/*			break;
 		case 2:
 			cheezyDrive();
 			cheezyShift();
 			cheezyIntake();
 			cheezyGripperPneumatics();
 			break;
-		}
+		}*/
 		operateIntake();
 		operateGripperPneumatics();
 		operateConveyor();
-		applesServo();
+//		applesServo();
 		indicateCube();
 	}
 
@@ -942,7 +946,7 @@ public:
 		}
 	}
 
-	void cheezyShift() {
+/*	void cheezyShift() {
 		if(m_GamepadDr->GetAButton() && !shiftToggleState1) {
 			m_shiftLow->Set(true);
 			m_shiftHigh->Set(false);
@@ -957,7 +961,7 @@ public:
 		}
 		else if(!m_GamepadDr->GetAButton() && !shiftToggleState2)
 			shiftToggleState1 = false;
-	}
+	}*/
 
 	bool advancedAutoDrive() {
 		float leftSpeed, rightSpeed;
@@ -990,7 +994,7 @@ public:
 		return (m_PDP->GetCurrent(15) > current || m_PDP->GetCurrent(14) > current || m_PDP->GetCurrent(13) > current || m_PDP->GetCurrent(12) > current);
 	}
 
-	void cheezyIntake() {
+/*	void cheezyIntake() {
 		float intakeLSpeed = limit(m_GamepadDr->GetTriggerAxis(XboxController::kLeftHand));
 		float intakeRSpeed = -limit(m_GamepadDr->GetTriggerAxis(XboxController::kRightHand));
 
@@ -1013,7 +1017,7 @@ public:
 			}
 			break;
 		}
-	}
+	}*/
 
 	void operateIntake() {
 		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
@@ -1060,14 +1064,14 @@ public:
 		}
 	}
 
-	void applesServo() {
+/*	void applesServo() {
 		if(m_GamepadOp->GetBumper(XboxController::kRightHand))
 			m_tailgateServo->SetAngle(90);
 		else
 			m_tailgateServo->SetAngle(0);
-	}
+	}*/
 
-	void cheezyGripperPneumatics() {
+/*	void cheezyGripperPneumatics() {
 		if(m_GamepadDr->GetBumper(XboxController::kRightHand)) {
 			m_gripperExtend->Set(true);
 			m_gripperRetract->Set(false);
@@ -1091,7 +1095,7 @@ public:
 		}
 		else if(!m_GamepadDr->GetBumper(XboxController::kLeftHand) && !intakeToggleState2)
 			intakeToggleState1 = false;
-	}
+	}*/
 
 	void operateGripperPneumatics() {
 	/*	switch(lowerIntakeState) {
@@ -1166,7 +1170,7 @@ public:
 		}
 	}
 
-	void cheezyDrive() {
+/*	void cheezyDrive() {
 		float joy1Y;
 		float joy2X;
 
@@ -1185,39 +1189,13 @@ public:
 		m_LBMotor->SetSpeed(-joy1Y - joy2X);
 		m_RFMotor->SetSpeed(joy1Y - joy2X);
 		m_RBMotor->SetSpeed(joy1Y - joy2X);
-	}
+	}*/
 
 	void indicateCube() {
-		switch(indicatorState) {
-		case 0:
+		if(!m_beamSensorLower->Get())
+			m_mangoRingLight->Set(Relay::kForward);
+		else
 			m_mangoRingLight->Set(Relay::kOff);
-			if(!m_beamSensorLower->Get()) {
-				indicatorTimer->Reset();
-				indicatorTimer->Start();
-				indicatorState++;
-			}
-			break;
-		case 1:
-			if(indicatorTimer->Get() < 0.2f)
-				m_mangoRingLight->Set(Relay::kForward);
-			if(indicatorTimer->Get() > 0.2f)
-				m_mangoRingLight->Set(Relay::kOff);
-			if(indicatorTimer->Get() > 0.4f)
-				m_mangoRingLight->Set(Relay::kForward);
-			if(indicatorTimer->Get() > 0.6f)
-				m_mangoRingLight->Set(Relay::kOff);
-			if(indicatorTimer->Get() > 0.8f)
-				m_mangoRingLight->Set(Relay::kForward);
-			if(indicatorTimer->Get() > 1.f) {
-				m_mangoRingLight->Set(Relay::kOff);
-				indicatorState++;
-			}
-			break;
-		case 2:
-			if(m_beamSensorLower->Get()) {
-				indicatorState = 0;
-			}
-		}
 	}
 
 // #.f is used to tell the computer that the number here is not a whole number(1).
