@@ -49,11 +49,11 @@
 #define LOWER_SPEED 0.5f
 
 #define APPLES 14
-#define CURVE_RES 40
+#define CURVE_RES 80
 #define LINE_RES 10
 
 //#define AUX_PWM
-//#define PRACTICE_BOT
+#define PRACTICE_BOT
 
 class Robot: public frc::IterativeRobot {
 public:
@@ -74,8 +74,8 @@ public:
 	Solenoid *m_shiftLow;
 	Solenoid *m_shiftHigh;
 
-	int autoState, autoMode, autoDelay, conveyorState, indicatorState;
-	int driveState, cheezyState, lowerIntakeState;
+	int autoState, autoMode, autoDelay, conveyorState, indicatorState, lowerIntakeState;
+//	int driveState, cheezyState, lowerIntakeState;
 //	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
 	bool twoCubeMode, currentError, joyBlues;
 	float currentGTime;
@@ -226,8 +226,8 @@ public:
 		brownTimer->Reset();
 		brownTimer->Stop();
 
-		driveState = 1;
-		cheezyState = 1;
+//		driveState = 1;
+	//	cheezyState = 1;
 		lowerIntakeState = 0;
 		indicatorState = 0;
 		autoMode = 0;
@@ -264,9 +264,9 @@ public:
 		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, backupLEnd, 20);
 
 		int centreRightEnd2[2] = {9500, 4400};
-		int cp8[2] = {3000, 0};
+		int cp8[2] = {2000, 0};
 		int cp9[2] = {3500, 4400};
-		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, CURVE_RES);
+		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, CURVE_RES/4);
 		int cp10[2] = {4400, 9700};
 		int backupREnd[2] = {24200, 9600};
 		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, backupREnd, 20);
@@ -319,29 +319,37 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
-		int backupTwoCubeEnd[2] = {4500, -1000};
-		int cp28[2] = {4500, 2500}; //was 4000, 5000
-		int cp29[2] = {8000, -1000}; //was 8700, -1000
+		int backupTwoCubeEnd[2] = {5500, -500};
+		int cp28[2] = {5500, 4000}; //was 4000, 5000
+		int cp29[2] = {6000, -1000}; //was 8700, -1000
+		int cp282[2] = {6000, 000};
+		int cp292[2] = {6500, 3000};
+		int centreRightScore[2] = {9500, 3500};
 		path_twoCubeBackupRight = new PathCurve(centreRightEnd2, cp28, cp29, backupTwoCubeEnd, CURVE_RES);
-		path_twoCubeShootRight = new PathCurve(backupTwoCubeEnd, cp29, cp28, centreRightEnd2, CURVE_RES);
+		path_twoCubeShootRight = new PathCurve(backupTwoCubeEnd, cp282, cp292, centreRightScore, CURVE_RES/2);
 
-		int cp30[2] = {4000, -6000}; //was 4000, -6000
-		int cp31[2] = {8000, -550};
+		int cp30[2] = {7000, -6000}; //was 4000, -6000
+		int cp31[2] = {7000, -2700}; //was 8000, -550
 		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES);
 		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp31, cp30, centreLeftEnd2, CURVE_RES);
 
-		int pickupTwoCubeEnd[2] = {9000, -700};
-		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 3);
+		int pickupTwoCubeEnd[2] = {9000, -1000};
+		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 3);
 
+#ifdef PRACTICE_BOT
+		m_turnPID = new SimPID(0.55, 0, 5.0, 0.0, 0.5);
+#else
 		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
-		m_turnPID->setContinuousAngle(true);
+#endif
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
-		m_drivePID->setMaxOutput(0.8);
-		m_finalTurnPID = new SimPID(0.7, 0, 0.9, 0, 0.5);
+		m_drivePID->setMaxOutput(0.7);
+		m_finalTurnPID = new SimPID(0.55, 0, 7.0, 0, 0.5);
 		m_finalTurnPID->setContinuousAngle(true);
 
-		METRO = new PathFollower(500, PI/4, m_drivePID, m_turnPID, m_finalTurnPID);
+		m_turnPID->setContinuousAngle(true);
+
+		METRO = new PathFollower(500, PI/2, m_drivePID, m_turnPID, m_finalTurnPID);
 		METRO->setIsDegrees(true);
 	}
 
@@ -419,6 +427,8 @@ public:
 	}
 
 	void AutonomousPeriodic() {
+		printf("automode: %d\tautoState: %d\n", autoMode, autoState);
+
 		if(delayTimer->Get() > autoDelay) {
 			switch(autoMode) {
 /*			case 1: //start from centre, deploy cubes on sides of switch
@@ -524,7 +534,7 @@ public:
 								autoState++;
 							}
 
-							if(plateColour[1] == 'L')
+							if(plateColour[1] == 'L' && !twoCubeMode)
 								autoState++;
 							else {
 								m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
@@ -588,7 +598,7 @@ public:
 								autoState++;
 							}
 
-							if(plateColour[1] == 'R')
+							if(plateColour[1] == 'R' && !twoCubeMode)
 								autoState++;
 							else {
 								m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
@@ -751,6 +761,8 @@ public:
 					autoMode = 2;
 					break;
 				case 3:
+					m_gripperExtend->Set(true);
+					m_gripperRetract->Set(false);
 					m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 					m_conveyor->SetSpeed(0.f);
@@ -764,15 +776,13 @@ public:
 					}
 					break;
 				case 4:
-					m_gripperExtend->Set(true);
-					m_gripperRetract->Set(false);
-					if(gripperTimer->Get() > 0.7f) {
-						m_lowerIntakeL->SetSpeed(-0.7f);
-						m_lowerIntakeR->SetSpeed(-0.7f);
-						gripperTimer->Reset();
-					}
+
+					m_lowerIntakeL->SetSpeed(-0.8f);
+					m_lowerIntakeR->SetSpeed(-0.8f);
+					gripperTimer->Reset();
+
 					advancedAutoDrive();
-					if(!m_beamSensorLower->Get() || autoTimer->Get() > 2.5f) {
+					if(!m_beamSensorLower->Get() || autoTimer->Get() > 1.5f) {
 						autoState++;
 						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
 						autoTimer->Reset();
@@ -782,8 +792,8 @@ public:
 				case 5:
 					m_gripperRetract->Set(true);
 					m_gripperExtend->Set(false);
-					m_lowerIntakeL->SetSpeed(0.f);
-					m_lowerIntakeR->SetSpeed(0.f);
+					m_lowerIntakeL->SetSpeed(-0.5f);
+					m_lowerIntakeR->SetSpeed(-0.5f);
 
 					if(advancedAutoDrive()) {
 						switch(plateColour[0]) {
@@ -798,6 +808,8 @@ public:
 					}
 					break;
 				case 6:
+					m_lowerIntakeL->SetSpeed(-0.f);
+					m_lowerIntakeR->SetSpeed(-0.f);
 					m_gripperUp->Set(true);
 					m_gripperDown->Set(false);
 					if(advancedAutoDrive()) {
