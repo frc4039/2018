@@ -258,12 +258,12 @@ public:
 		int centreLeftEnd2[2] = {9500, -6400};
 		int cp5[2] = {3000, 0};
 		int cp6[2] = {3500, -6400};
-		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, CURVE_RES);
+		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, CURVE_RES/4);
 		int cp7[2] = {4400, -12700};
 		int backupLEnd[2] = {24200, -12600};
 		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, backupLEnd, 20);
 
-		int centreRightEnd2[2] = {9500, 4400};
+		int centreRightEnd2[2] = {9500, 5400}; //was 9500, 5400
 		int cp8[2] = {2000, 0};
 		int cp9[2] = {3500, 4400};
 		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, CURVE_RES/4);
@@ -328,10 +328,12 @@ public:
 		path_twoCubeBackupRight = new PathCurve(centreRightEnd2, cp28, cp29, backupTwoCubeEnd, CURVE_RES);
 		path_twoCubeShootRight = new PathCurve(backupTwoCubeEnd, cp282, cp292, centreRightScore, CURVE_RES/2);
 
-		int cp30[2] = {7000, -6000}; //was 4000, -6000
-		int cp31[2] = {7000, -2700}; //was 8000, -550
+		int cp30[2] = {6000, -6000}; //was 4000, -6000
+		int cp31[2] = {6000, -500}; //was 8000, -550
+		int cp31_2[2] = {6500, -4500};
+		int centreLeftScore[2] = {9500, -5000};
 		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES);
-		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp31, cp30, centreLeftEnd2, CURVE_RES);
+		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp282, cp31_2, centreLeftScore, CURVE_RES/2);
 
 		int pickupTwoCubeEnd[2] = {9000, -1000};
 		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
@@ -916,8 +918,10 @@ public:
 		m_conveyor->SetSpeed(0.f);
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
-		m_gripperDown->Set(true);
-		m_gripperUp->Set(false);
+		if(!twoCubeMode) {
+			m_gripperDown->Set(true);
+			m_gripperUp->Set(false);
+		}
 		gripperTimer->Reset();
 		gripperTimer->Start();
 		brownTimer->Reset();
