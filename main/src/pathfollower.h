@@ -45,6 +45,9 @@ private:
 	float turnSpeed, driveSpeed;
 	float normalize(float normalAngle);
 	char invertTurn, invertDrive;
+	float startRampDistanceConstant;
+	float startRampMinSpeed;
+	bool startRampEnable;
 	int followPath(float &nLeftSpeed, float &nRightSpeed);
 
 public:
@@ -67,7 +70,10 @@ public:
 	void setInvertTurn(bool set);
 	void setInvertDrive(bool set);
 	void setIsDegrees(bool set);
-	void ScaleDrive(float &left, float &right);
+	void scaleDrive(float &left, float &right);
+	void setStartRamp(float minSpeed, float distanceConst);
+	void startRampScale();
+	void enableStartRamp() { startRampEnable = true; };
 };
 
 #endif

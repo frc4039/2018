@@ -54,6 +54,7 @@
 
 //#define AUX_PWM
 #define PRACTICE_BOT
+//#define HAIL_MARY
 
 class Robot: public frc::IterativeRobot {
 public:
@@ -117,6 +118,8 @@ public:
 
 	DigitalInput *m_beamSensorLower;
 
+	cs::UsbCamera cam0;
+
 	Relay *m_mangoRingLight;
 
 	//====================Pathfollow Variables==================
@@ -129,7 +132,7 @@ public:
 	//drive to switch and stop from any station
 	Path *path_sideVeerLeft, *path_sideVeerRight, *path_sideCrossLeft, *path_sideCrossRight;
 	//drive past auto line
-	Path *path_crossAutoLine;
+	Path *path_crossAutoLine, *path_crossNullZone;
 	//exchange
 	Path *path_exchange;
 	//exchange after center auto
@@ -160,7 +163,8 @@ public:
 		m_RFMotor = new VictorSP(7); // ^
 		m_RBMotor = new VictorSP(6); // ^
 
-		CameraServer::GetInstance()->StartAutomaticCapture();
+		cam0 = CameraServer::GetInstance()->StartAutomaticCapture();
+		cam0.SetExposureManual(50);
 
 		m_lowerIntakeL = new VictorSP(1); // left intake
 		m_lowerIntakeR = new VictorSP(2); // right intake
@@ -263,12 +267,12 @@ public:
 		int backupLEnd[2] = {24200, -12600};
 		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, backupLEnd, 20);
 
-		int centreRightEnd2[2] = {9500, 5400}; //was 9500, 5400
+		int centreRightEnd2[2] = {9500, 4400}; //was 9500, 5400
 		int cp8[2] = {2000, 0};
 		int cp9[2] = {3500, 4400};
 		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, CURVE_RES/4);
-		int cp10[2] = {4400, 9700};
-		int backupREnd[2] = {24200, 9600};
+		int cp10[2] = {4400, 10000};
+		int backupREnd[2] = {24200, 10000};
 		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, backupREnd, 20);
 
 		int sideVLEnd[2] = {15200, -2200};
@@ -292,7 +296,9 @@ public:
 		path_sideCrossRight = new PathCurve(zero, cp16, cp17, sideCREnd, CURVE_RES);
 
 		int crossAutoEnd[2] = {13000, 0};
-		path_crossAutoLine = new PathLine(zero, crossAutoEnd, LINE_RES);
+		path_crossAutoLine = new PathLine(zero, crossAutoEnd, 2);
+		int crossNullEnd[2] = {25000, 0};
+		path_crossNullZone = new PathLine(zero, crossNullEnd, 2);
 
 		int exchangeEnd[2] = {0, -800};
 		int cp18[2] = {800, 0};
@@ -319,7 +325,7 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
-		int backupTwoCubeEnd[2] = {5500, -500};
+		int backupTwoCubeEnd[2] = {4500, -500};
 		int cp28[2] = {5500, 4000}; //was 4000, 5000
 		int cp29[2] = {6000, -1000}; //was 8700, -1000
 		int cp282[2] = {6000, 000};
@@ -339,11 +345,9 @@ public:
 		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 3);
 
-#ifdef PRACTICE_BOT
 		m_turnPID = new SimPID(0.55, 0, 5.0, 0.0, 0.5);
-#else
-		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
-#endif
+//		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
+
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(0.7);
 		m_finalTurnPID = new SimPID(0.55, 0, 7.0, 0, 0.5);
@@ -353,6 +357,8 @@ public:
 
 		METRO = new PathFollower(500, PI/2, m_drivePID, m_turnPID, m_finalTurnPID);
 		METRO->setIsDegrees(true);
+		//METRO->enableStartRamp();
+		METRO->setStartRamp(0.4, 3000);
 	}
 
 	void DisabledPeriodic() {
@@ -395,6 +401,7 @@ public:
 
 		METRO->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
 		printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
+		plateColour = DriverStation::GetInstance().GetGameSpecificMessage();
 	}
 
 	void AutonomousInit() override {
@@ -407,7 +414,9 @@ public:
 		m_conveyor->SetSpeed(0.f);
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
+#ifndef HAIL_MARY
 		m_gripperDown->Set(true);
+#endif
 		m_gripperUp->Set(false);
 		m_squareExtend->Set(false);
 		m_squareRetract->Set(true);
@@ -430,6 +439,7 @@ public:
 
 	void AutonomousPeriodic() {
 		printf("automode: %d\tautoState: %d\n", autoMode, autoState);
+		plateColour = DriverStation::GetInstance().GetGameSpecificMessage();
 
 		if(delayTimer->Get() > autoDelay) {
 			switch(autoMode) {
@@ -485,10 +495,29 @@ public:
 						autoMode = 12;
 				}
 				break;*/
-			case 1:
+			case 11:
 				switch(autoState) {
 				case 0:
-					METRO->initPath(path_crossAutoLine, PathForward, 0);
+					if(plateColour[1] == 'L')
+						METRO->initPath(path_crossAutoLine, PathForward, 0);
+					else
+						METRO->initPath(path_crossNullZone, PathForward, 0);
+
+					autoState++;
+					break;
+				case 1:
+					advancedAutoDrive();
+					break;
+				}
+				break;
+			case 12:
+				switch(autoState) {
+				case 0:
+					if(plateColour[1] == 'R')
+						METRO->initPath(path_crossAutoLine, PathForward, 0);
+					else
+						METRO->initPath(path_crossNullZone, PathForward, 0);
+
 					autoState++;
 					break;
 				case 1:
@@ -627,85 +656,96 @@ public:
 				}
 				break;
 			case 3: //drive forward from right side and veer left, deploy cube if corresponding side ...right side
-				switch(autoState) {
-				case 0:
-					METRO->initPath(path_sideVeerLeft, PathForward, -90);
-					autoState++;
-					autoTimer->Reset();
-					break;
-				case 1:
-//					if(advancedAutoDrive() || autoTimer->Get() > 30.f) {
-					if(advancedAutoDrive()) {
+				switch(plateColour[0]) {
+				case 'R':
+					switch(autoState) {
+					case 0:
+						METRO->initPath(path_sideVeerLeft, PathForward, -90);
+						autoState++;
 						autoTimer->Reset();
-						if(plateColour[0] == 'R')
+						break;
+					case 1:
+						if(advancedAutoDrive()) {
+							autoTimer->Reset();
 							autoState++;
+						}
+						break;
+					case 2:
+						if(autoTimer->Get() < 1.2f) {
+							m_LFMotor->SetSpeed(-0.5f);
+							m_LBMotor->SetSpeed(-0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+						}
+
+						if(autoTimer->Get() < 3.f) {
+							m_conveyor->SetSpeed(CONVEYOR_SPEED);
+							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
+							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
+						}
+						else {
+							m_conveyor->SetSpeed(0.f);
+							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+						}
+						break;
 					}
 					break;
-				case 2:
-					if(autoTimer->Get() < 1.2f) {
-						m_LFMotor->SetSpeed(-0.5f);
-						m_LBMotor->SetSpeed(-0.5f);
-						m_RFMotor->SetSpeed(0.5f);
-						m_RFMotor->SetSpeed(0.5f);
-					}
-					else {
-						m_LFMotor->SetSpeed(0.f);
-						m_LBMotor->SetSpeed(0.f);
-						m_RFMotor->SetSpeed(0.f);
-						m_RBMotor->SetSpeed(0.f);
-					}
-
-					if(autoTimer->Get() < 3.f) {
-						m_conveyor->SetSpeed(CONVEYOR_SPEED);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
-					}
-					else {
-						m_conveyor->SetSpeed(0.f);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
-					}
+				case 'L':
+					autoMode = 11;
 					break;
 				}
 				break;
 			case 4: //drive forward from left side and veer right, deploy cube if corresponding side
-				switch(autoState) {
-				case 0:
-					METRO->initPath(path_sideVeerRight, PathForward, 90);
-					autoState++;
-					autoTimer->Reset();
-					break;
-				case 1:
-					if(advancedAutoDrive() || autoTimer->Get() > 30.f) {
+				switch(plateColour[0]) {
+				case 'L':
+					switch(autoState) {
+					case 0:
+						METRO->initPath(path_sideVeerRight, PathForward, 90);
+						autoState++;
 						autoTimer->Reset();
-						if(plateColour[0] == 'L')
+						break;
+					case 1:
+						if(advancedAutoDrive() || autoTimer->Get() > 30.f) {
+							autoTimer->Reset();
 							autoState++;
+						}
+						break;
+					case 2:
+						if(autoTimer->Get() < 1.2f) {
+							m_LFMotor->SetSpeed(-0.5f);
+							m_LBMotor->SetSpeed(-0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+						}
+
+						if(autoTimer->Get() < 3.f) {
+							m_conveyor->SetSpeed(CONVEYOR_SPEED);
+							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
+							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
+						}
+						else {
+							m_conveyor->SetSpeed(0.f);
+							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+						}
+						break;
 					}
 					break;
-				case 2:
-					if(autoTimer->Get() < 1.2f) {
-						m_LFMotor->SetSpeed(-0.5f);
-						m_LBMotor->SetSpeed(-0.5f);
-						m_RFMotor->SetSpeed(0.5f);
-						m_RFMotor->SetSpeed(0.5f);
-					}
-					else {
-						m_LFMotor->SetSpeed(0.f);
-						m_LBMotor->SetSpeed(0.f);
-						m_RFMotor->SetSpeed(0.f);
-						m_RBMotor->SetSpeed(0.f);
-					}
-
-					if(autoTimer->Get() < 3.f) {
-						m_conveyor->SetSpeed(CONVEYOR_SPEED);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
-					}
-					else {
-						m_conveyor->SetSpeed(0.f);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
-					}
+				case 'R':
+					autoMode = 12;
 					break;
 				}
 				break;
@@ -919,7 +959,9 @@ public:
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
 		if(!twoCubeMode) {
+#ifndef HAIL_MARY
 			m_gripperDown->Set(true);
+#endif
 			m_gripperUp->Set(false);
 		}
 		gripperTimer->Reset();
@@ -997,8 +1039,8 @@ public:
 		float joyX;
 		float joyY;
 
-		joyX = -limit(expo(m_Joystick->GetX(), 3)); // Getting the X position from the joystick
-		joyY = -limit(expo(m_Joystick->GetY(), 2)); // Getting the Y position from the joystick
+		joyX = -limit(shiftlib::scale(expo(m_Joystick->GetX(), 5), 0.8)); // Getting the X position from the joystick
+		joyY = -limit(shiftlib::scale(expo(m_Joystick->GetY(), 2), 0.8)); // Getting the Y position from the joystick
 
 		m_LFMotor->SetSpeed(-joyY + joyX);
 		m_LBMotor->SetSpeed(-joyY + joyX);
@@ -1059,10 +1101,12 @@ public:
 			if(m_GamepadOp->GetAButton() || m_Joystick->GetRawButton(3))
 				conveyorState = 10;
 
-			if(m_Joystick->GetRawButton(4))
-				m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
-			else
-				m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+			for(int i = 6; i <= 12; i++) {
+				if(m_Joystick->GetRawButton(i))
+					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
+				else
+					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+			}
 
 			m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 			m_conveyor->SetSpeed(conveyorJoy);
@@ -1178,11 +1222,15 @@ public:
 
 		if(m_GamepadOp->GetPOV(0) == GP_UP) {
 			m_gripperUp->Set(true);
+#ifndef HAIL_MARY
 			m_gripperDown->Set(false);
+#endif
 		}
 		else if(m_GamepadOp->GetPOV(0) == GP_DOWN) {
 			m_gripperUp->Set(false);
+#ifndef HAIL_MARY
 			m_gripperDown->Set(true);
+#endif
 		}
 	}
 

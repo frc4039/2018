@@ -26,6 +26,7 @@ PathFollower::PathFollower(float nDistanceError, float nMaxTurnError, SimPID *nD
 	invertTurn = 1;
 	isDegrees = false;
 	drivePID->setDesiredValue(0);
+	startRampEnable = false;
 }
 
 void PathFollower::initPath(Path *nPath, PathDirection nDirection, float nFinalAngleDegrees){
@@ -120,6 +121,8 @@ int PathFollower::followPath(float &nLeftSpeed, float &nRightSpeed){
 	if(driveDone == false)
 	{
 		driveSpeed = invertDrive*direction*drivePID->calcPID(driveError) * (1 - limit(fabs(turnPID->getError())/maxTurnError, 1.f));
+		if(startRampEnable)
+			startRampScale();
 		driveToPoint();
 
 		printf("turn error: %f, turnLimiter: %f, \n", turnPID->getError(), (1 - limit(fabs(turnPID->getError())/maxTurnError, 1.f)));
@@ -154,7 +157,31 @@ int PathFollower::followPath(float &nLeftSpeed, float &nRightSpeed){
 	return 0;
 }
 
-void PathFollower::ScaleDrive(float &left, float &right){
+void PathFollower::startRampScale(){
+	printf("driveError: %f\pathmax:%f\trampend:%f\ncurrentspeed:%f\tscaleConst:%f\t\n", driveError
+																									,path->getPathDistance(0)
+																									,path->getPathDistance(0) - startRampDistanceConstant
+																									,driveSpeed
+																									,fabs(path->getPathDistance(0) - driveError)/(float)startRampDistanceConstant
+																									);
+	if(driveError > path->getPathDistance(0) - startRampDistanceConstant){
+		float newdriveSpeed = driveSpeed * fabs(path->getPathDistance(0) - driveError)/(float)startRampDistanceConstant;
+		if(newdriveSpeed < startRampMinSpeed && newdriveSpeed > -startRampMinSpeed){
+			driveSpeed = -direction*startRampMinSpeed;
+		}
+		else{
+			driveSpeed = newdriveSpeed;
+		}
+		printf("\nNEW DRIVE SPEED %f\tACTUAL SPEED%f\n\n", newdriveSpeed, driveSpeed );
+	}
+}
+
+void PathFollower::setStartRamp(float minSpeed, float distanceConst){
+	startRampDistanceConstant = distanceConst;
+	startRampMinSpeed = minSpeed;
+}
+
+void PathFollower::scaleDrive(float &left, float &right){
 	float top = 1;
 	if (fabs(left) > maxSpeed)
 		top = fabs(left);
