@@ -285,14 +285,14 @@ public:
 		int cp12_2[2] = {15200, -3500};
 		path_sideVeerRight = new PathCurve(zero, cp13, cp12_2, sideVREnd, 40);
 
-		int sideCLEnd[2] = {19200, -14500};
-		int cp14[2] = {7500, 800};
-		int cp15[2] = {7400, -16000};
+		int sideCLEnd[2] = {9500, -14000};
+		int cp14[2] = {4700, 0};
+		int cp15[2] = {4700, -14000};
 		path_sideCrossLeft = new PathCurve(zero, cp14, cp15, sideCLEnd, CURVE_RES);
 
-		int sideCREnd[2] = {19200, 14500};
-		int cp16[2] = {7500, -800};
-		int cp17[2] = {7400, 16000};
+		int sideCREnd[2] = {9500, 14000};
+		int cp16[2] = {4700, 0};
+		int cp17[2] = {4700, 14000};
 		path_sideCrossRight = new PathCurve(zero, cp16, cp17, sideCREnd, CURVE_RES);
 
 		int crossAutoEnd[2] = {13000, 0};
@@ -345,7 +345,7 @@ public:
 		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 3);
 
-		m_turnPID = new SimPID(0.55, 0, 5.0, 0.0, 0.5);
+		m_turnPID = new SimPID(0.55, 0, 3.0, 0.0, 0.5);
 //		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
 
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
@@ -358,7 +358,7 @@ public:
 		METRO = new PathFollower(500, PI/2, m_drivePID, m_turnPID, m_finalTurnPID);
 		METRO->setIsDegrees(true);
 		//METRO->enableStartRamp();
-		METRO->setStartRamp(0.4, 3000);
+		METRO->setStartRamp(0.35, 1500);
 	}
 
 	void DisabledPeriodic() {
@@ -392,12 +392,12 @@ public:
 			driveState = 2;*/
 
 		if(m_beamSensorLower->Get())
-			DriverStation::ReportError("BEAM SENSOR TRUE");
+			printf("BEAM SENSOR TRUE");
 
 		autoDelay = -5*(m_Joystick->GetRawAxis(3) - 1);
-		DriverStation::ReportError("Left Encoder: " + std::to_string(LRead) + " | Right Encoder: " + std::to_string(RRead) + " | Gyro: " + std::to_string(GRead));
-		DriverStation::ReportError("Auto Mode: " + std::to_string(autoMode) + " | Auto Delay: " + std::to_string(autoDelay));
-//		DriverStation::ReportError("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
+		printf("Left Encoder: %d | Right Encoder: %d | Gyro: %d\n", LRead, RRead, GRead);
+		printf("Auto Mode: %d | Auto Delay: %d\n", autoMode, autoDelay);
+//		printf("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
 
 		METRO->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
 		printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
@@ -749,45 +749,75 @@ public:
 					break;
 				}
 				break;
-/*			case 5: //drive up right side, if corresponding side, run auto 3, if not, cross to left side
+			case 5: //drive up right side, if corresponding side, run auto 3, if not, cross to left side
 				switch(plateColour[0]) {
 				case 'L':
 					switch(autoState) {
 					case 0:
-						METRO->initPath(path_sideCrossLeft, PathForward, -270);
+						METRO->initPath(path_sideCrossLeft, PathForward, 0);
 						autoState++;
 						break;
 					case 1:
-						if(advancedAutoDrive())
+						if(advancedAutoDrive()) {
 							autoState++;
+							autoTimer->Reset();
+							autoTimer->Start();
+						}
 						break;
 					case 2:
+						if(autoTimer->Get() < 1.2f) {
+							m_LFMotor->SetSpeed(-0.5f);
+							m_LBMotor->SetSpeed(-0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+						}
 						m_conveyor->SetSpeed(1.f);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
 						break;
 					}
 					break;
 				case 'R':
 					autoMode = 3;
 				}
-				break;*/
-/*			case 6: //drive up left side, if corresponding side, run auto 4, if not, cross to right side
+				break;
+			case 6: //drive up left side, if corresponding side, run auto 4, if not, cross to right side
 				switch(plateColour[0]) {
 				case 'R':
 					switch(autoState) {
 					case 0:
-						METRO->initPath(path_sideCrossRight, PathForward, 270);
+						METRO->initPath(path_sideCrossRight, PathForward, 0);
 						autoState++;
 						break;
 					case 1:
-						if(advancedAutoDrive())
+						if(advancedAutoDrive()) {
 							autoState++;
+							autoTimer->Reset();
+							autoTimer->Start();
+						}
 						break;
 					case 2:
+						if(autoTimer->Get() < 1.2f) {
+							m_LFMotor->SetSpeed(-0.5f);
+							m_LBMotor->SetSpeed(-0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+						}
 						m_conveyor->SetSpeed(1.f);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -1.f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, 1.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
 						break;
 					}
 					break;
@@ -795,7 +825,7 @@ public:
 					autoMode = 4;
 					break;
 				}
-				break;*/
+				break;
 			case 7: //similar to auto 2, but grabs another cube. And shoots it. It's pretty cool if I do say so myself. apple
 				switch(autoState) {
 				case 0:
