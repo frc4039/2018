@@ -113,6 +113,7 @@ public:
 	Timer *gripperTimer;
 	Timer *indicatorTimer;
 	Timer *brownTimer;
+	int printDelay;
 
 	Servo *m_tailgateServo;
 
@@ -156,7 +157,7 @@ public:
     }*/
 
 	void RobotInit() {
-		m_PDP = new PowerDistributionPanel(0);
+		//m_PDP = new PowerDistributionPanel(0);
 
 		m_LFMotor = new VictorSP(9); // The place where you initialize your variables to their victors and which port on the RoboRio/computer
 		m_LBMotor = new VictorSP(8); // ^
@@ -229,6 +230,7 @@ public:
 		brownTimer = new Timer();
 		brownTimer->Reset();
 		brownTimer->Stop();
+		printDelay = 0;
 
 //		driveState = 1;
 	//	cheezyState = 1;
@@ -362,9 +364,9 @@ public:
 	}
 
 	void DisabledPeriodic() {
-		long long int LRead = m_leftEncoder->Get();
-		long long int RRead = m_rightEncoder->Get();
-		long double GRead = nav->GetYaw();
+		int LRead = m_leftEncoder->Get();
+		int RRead = m_rightEncoder->Get();
+		float GRead = nav->GetYaw();
 
 		for(int i = 1; i <= 12; i++) {
 			if(m_Joystick->GetRawButton(i))	{
@@ -391,17 +393,25 @@ public:
 		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kRightHand))
 			driveState = 2;*/
 
-		if(m_beamSensorLower->Get())
-			printf("BEAM SENSOR TRUE");
+
 
 		autoDelay = -5*(m_Joystick->GetRawAxis(3) - 1);
-		printf("Left Encoder: %d | Right Encoder: %d | Gyro: %d\n", LRead, RRead, GRead);
-		printf("Auto Mode: %d | Auto Delay: %d\n", autoMode, autoDelay);
+
 //		printf("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
 
 		METRO->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
-		printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
+
 		plateColour = DriverStation::GetInstance().GetGameSpecificMessage();
+
+		printDelay++;
+		if(printDelay > 25){
+			printDelay = 0;
+			if(m_beamSensorLower->Get())
+				printf("BEAM SENSOR TRUE\n");
+			printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
+			printf("Left Encoder: %d | Right Encoder: %d | Gyro: %f\n", LRead, RRead, GRead);
+			printf("Auto Mode: %d | Auto Delay: %d\n\n\n", autoMode, autoDelay);
+		}
 	}
 
 	void AutonomousInit() override {
@@ -1079,7 +1089,7 @@ public:
 	}
 
 	bool checkCurrent(float current) {
-		return (m_PDP->GetCurrent(15) > current || m_PDP->GetCurrent(14) > current || m_PDP->GetCurrent(13) > current || m_PDP->GetCurrent(12) > current);
+		return false;//(m_PDP->GetCurrent(15) > current || m_PDP->GetCurrent(14) > current || m_PDP->GetCurrent(13) > current || m_PDP->GetCurrent(12) > current);
 	}
 
 /*	void cheezyIntake() {
