@@ -45,7 +45,7 @@
 #define GP_DOWN 180 //GamePad D-Pad down. 0 is up and 180 is down.
 
 #define CONVEYOR_SPEED -1.f
-#define UPPER_SPEED 0.5f
+#define UPPER_SPEED 0.4f
 #define LOWER_SPEED 0.5f
 
 #define APPLES 14
@@ -120,6 +120,7 @@ public:
 	DigitalInput *m_beamSensorLower;
 
 	cs::UsbCamera cam0;
+	cs::UsbCamera cam1;
 
 	Relay *m_mangoRingLight;
 
@@ -164,8 +165,10 @@ public:
 		m_RFMotor = new VictorSP(7); // ^
 		m_RBMotor = new VictorSP(6); // ^
 
-		cam0 = CameraServer::GetInstance()->StartAutomaticCapture();
+		cam0 = CameraServer::GetInstance()->StartAutomaticCapture(0);
 		cam0.SetExposureManual(50);
+		cam1 = CameraServer::GetInstance()->StartAutomaticCapture(1);
+		cam1.SetExposureManual(50);
 
 		m_lowerIntakeL = new VictorSP(1); // left intake
 		m_lowerIntakeR = new VictorSP(2); // right intake
@@ -261,21 +264,23 @@ public:
 		int cp4[2] = {6400, 0};
 		path_centreSwitchRight = new PathCurve(zero, cp3, cp4, centreRightEnd, CURVE_RES);
 
-		int centreLeftEnd2[2] = {9500, -6400};
+		int centreLeftEnd2[2] = {9500, -5400};
 		int cp5[2] = {3000, 0};
-		int cp6[2] = {3500, -6400};
-		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, CURVE_RES/4);
+		int cp6[2] = {5000, -1500}; //was 3500, -6400
+		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, 10);
 		int cp7[2] = {4400, -12700};
+		int cp7_0[2] = {3500, -6400};
 		int backupLEnd[2] = {24200, -12600};
-		path_backupLeft = new PathCurve(centreLeftEnd2, cp6, cp7, backupLEnd, 20);
+		path_backupLeft = new PathCurve(centreLeftEnd2, cp7_0, cp7, backupLEnd, 20);
 
 		int centreRightEnd2[2] = {9500, 4400}; //was 9500, 5400
 		int cp8[2] = {2000, 0};
-		int cp9[2] = {3500, 4400};
-		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, CURVE_RES/4);
+		int cp9[2] = {6000, 1000}; //was 3500, 4400
+		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, 10); //was 20
 		int cp10[2] = {4400, 10000};
+		int cp10_0[2] = {3500, 4400};
 		int backupREnd[2] = {24200, 10000};
-		path_backupRight = new PathCurve(centreRightEnd2, cp9, cp10, backupREnd, 20);
+		path_backupRight = new PathCurve(centreRightEnd2, cp10_0, cp10, backupREnd, 20);
 
 		int sideVLEnd[2] = {15200, -2200};
 		int cp11[2] = {5500, 0};
@@ -352,7 +357,7 @@ public:
 
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(0.7);
-		m_finalTurnPID = new SimPID(0.55, 0, 7.0, 0, 0.5);
+		m_finalTurnPID = new SimPID(0.55, 0, 3.0, 0, 0.5);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		m_turnPID->setContinuousAngle(true);
@@ -374,30 +379,11 @@ public:
 				nav->Reset();
 				m_leftEncoder->Reset();
 				m_rightEncoder->Reset();
-/*				triggerTimer->Start();
-				if(triggerTimer->Get() > 4.f)
-					driveState = 1;*/
 				METRO->reset();
 			}
-/*			else {
-				triggerTimer->Reset();
-				triggerTimer->Stop();
-			}*/
 		}
-
-/*		for(int i = 1; i <= 2; i++) {
-			if(m_GamepadDr->GetRawButton(i))
-				cheezyState = i;
-		}
-
-		if(m_GamepadDr->GetBumper(XboxController::kLeftHand) && m_GamepadDr->GetBumper(XboxController::kRightHand))
-			driveState = 2;*/
-
-
 
 		autoDelay = -5*(m_Joystick->GetRawAxis(3) - 1);
-
-//		printf("Drive State: " + std::to_string(driveState) + " | Cheezy State: " + std::to_string(cheezyState));
 
 		METRO->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
 
@@ -540,13 +526,15 @@ public:
 				case 'L':
 					switch(autoState) {
 					case 0:
-						METRO->initPath(path_centreSwitchLeft2, PathForward, 0);
+						m_drivePID->setMaxOutput(0.85);
+						METRO->initPath(path_centreSwitchLeft2, PathForward, -25);
 						autoState++;
 						break;
 					case 1:
 						if(advancedAutoDrive()) {
 							autoState++;
 							autoTimer->Reset();
+							m_drivePID->setMaxOutput(0.7);
 						}
 						break;
 					case 2:
@@ -602,7 +590,8 @@ public:
 				case 'R':
 					switch(autoState) {
 					case 0:
-						METRO->initPath(path_centreSwitchRight2, PathForward, 0);
+						m_drivePID->setMaxOutput(0.85);
+						METRO->initPath(path_centreSwitchRight2, PathForward, 20);
 						autoTimer->Reset();
 						autoState++;
 						break;
@@ -610,12 +599,13 @@ public:
 						if(advancedAutoDrive()) {
 							autoState++;
 							autoTimer->Reset();
+							m_drivePID->setMaxOutput(0.7);
 						}
 						break;
 					case 2:
 						if(autoTimer->Get() < 1.f) {
-							m_LFMotor->SetSpeed(-0.5f);
-							m_LBMotor->SetSpeed(-0.5f);
+							m_LFMotor->SetSpeed(-0.1f);
+							m_LBMotor->SetSpeed(-0.1f);
 							m_RFMotor->SetSpeed(0.5f);
 							m_RBMotor->SetSpeed(0.5f);
 						}
@@ -1010,6 +1000,7 @@ public:
 		brownTimer->Start();
 		currentGTime = 0.f;
 		indicatorState = 0;
+		lowerIntakeState = 0;
 		joyBlues = false;
 	}
 
@@ -1121,38 +1112,60 @@ public:
 		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
 		float intakeRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
 
-		if(m_gripperDown->Get()) {
-			m_lowerIntakeL->SetSpeed(intakeFSpeed - intakeRSpeed);
-			m_lowerIntakeR->SetSpeed(intakeFSpeed - intakeRSpeed);
-		}
-		else {
-			m_lowerIntakeL->SetSpeed(0.5*(intakeFSpeed - intakeRSpeed));
-			m_lowerIntakeR->SetSpeed(0.5*(intakeFSpeed - intakeRSpeed));
+		switch(lowerIntakeState) {
+		case 0:
+			if(m_gripperDown->Get()) {
+				m_lowerIntakeL->SetSpeed(intakeFSpeed - intakeRSpeed);
+				m_lowerIntakeR->SetSpeed(intakeFSpeed - intakeRSpeed);
+			}
+			else {
+				m_lowerIntakeL->SetSpeed(0.5*(intakeFSpeed - intakeRSpeed));
+				m_lowerIntakeR->SetSpeed(0.5*(intakeFSpeed - intakeRSpeed));
+			}
+
+			if(m_Joystick->GetRawButton(9))
+				lowerIntakeState = 10;
+
+			printf("Intake Speed: %f", intakeRSpeed);
+			printf("\n");
+			break;
+		case 10:
+			if(m_gripperDown->Get()) {
+				m_lowerIntakeL->SetSpeed(1.f);
+				m_lowerIntakeR->SetSpeed(1.f);
+			}
+			else {
+				m_lowerIntakeL->SetSpeed(0.5f);
+				m_lowerIntakeR->SetSpeed(0.5f);
+			}
+
+			if(!m_Joystick->GetRawButton(9))
+				lowerIntakeState = 0;
+
+			break;
 		}
 	}
 
 	void operateConveyor() {
 		float conveyorJoy = limit(m_GamepadOp->GetY(XboxController::kLeftHand));
-		if(m_Joystick->GetRawButton(3))
+		if(m_Joystick->GetRawButton(10))
 			joyBlues = true;
 
 		switch(conveyorState) {
 		case 0:
-			if(m_GamepadOp->GetAButton() || m_Joystick->GetRawButton(3))
+			if(m_GamepadOp->GetAButton() || m_Joystick->GetRawButton(10))
 				conveyorState = 10;
 
-			for(int i = 6; i <= 12; i++) {
-				if(m_Joystick->GetRawButton(i))
-					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
-				else
-					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
-			}
+			if(m_Joystick->GetRawButton(11) || m_Joystick->GetRawButton(12))
+				m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
+			else
+				m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 
 			m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 			m_conveyor->SetSpeed(conveyorJoy);
 			break;
 		case 10:
-			if(m_GamepadOp->GetAButtonReleased() || (!m_Joystick->GetRawButton(3) && joyBlues)) {
+			if(m_GamepadOp->GetAButtonReleased() || (!m_Joystick->GetRawButton(10) && joyBlues)) {
 				conveyorState = 0;
 				joyBlues = false;
 			}
@@ -1260,13 +1273,13 @@ public:
 			gripperTimer->Reset();
 		}
 
-		if(m_GamepadOp->GetPOV(0) == GP_UP) {
+		if(m_GamepadOp->GetPOV(0) == GP_UP || m_Joystick->GetRawButton(7)) {
 			m_gripperUp->Set(true);
 #ifndef HAIL_MARY
 			m_gripperDown->Set(false);
 #endif
 		}
-		else if(m_GamepadOp->GetPOV(0) == GP_DOWN) {
+		else if(m_GamepadOp->GetPOV(0) == GP_DOWN || m_Joystick->GetRawButton(8)) {
 			m_gripperUp->Set(false);
 #ifndef HAIL_MARY
 			m_gripperDown->Set(true);
