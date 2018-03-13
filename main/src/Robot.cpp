@@ -264,19 +264,19 @@ public:
 		int cp4[2] = {6400, 0};
 		path_centreSwitchRight = new PathCurve(zero, cp3, cp4, centreRightEnd, CURVE_RES);
 
-		int centreLeftEnd2[2] = {9500, -5400};
+		int centreLeftEnd2[2] = {9500, -6400}; //was 9500, -6400
 		int cp5[2] = {3000, 0};
-		int cp6[2] = {5000, -1500}; //was 3500, -6400
-		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, 10);
+		int cp6[2] = {3500, -6400}; //was 3500, -6400
+		path_centreSwitchLeft2 = new PathCurve(zero, cp5, cp6, centreLeftEnd2, 20); //was 20
 		int cp7[2] = {4400, -12700};
 		int cp7_0[2] = {3500, -6400};
 		int backupLEnd[2] = {24200, -12600};
 		path_backupLeft = new PathCurve(centreLeftEnd2, cp7_0, cp7, backupLEnd, 20);
 
-		int centreRightEnd2[2] = {9500, 4400}; //was 9500, 5400
+		int centreRightEnd2[2] = {9500, 4400}; //was 9500, 4400
 		int cp8[2] = {2000, 0};
-		int cp9[2] = {6000, 1000}; //was 3500, 4400
-		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, 10); //was 20
+		int cp9[2] = {3500, 4400}; //was 3500, 4400
+		path_centreSwitchRight2 = new PathCurve(zero, cp8, cp9, centreRightEnd2, 20); //was 20
 		int cp10[2] = {4400, 10000};
 		int cp10_0[2] = {3500, 4400};
 		int backupREnd[2] = {24200, 10000};
@@ -357,7 +357,7 @@ public:
 
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(0.7);
-		m_finalTurnPID = new SimPID(0.55, 0, 3.0, 0, 0.5);
+		m_finalTurnPID = new SimPID(0.55, 0, 7.0, 0, 0.5);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		m_turnPID->setContinuousAngle(true);
@@ -526,8 +526,8 @@ public:
 				case 'L':
 					switch(autoState) {
 					case 0:
-						m_drivePID->setMaxOutput(0.85);
-						METRO->initPath(path_centreSwitchLeft2, PathForward, -25);
+//						m_drivePID->setMaxOutput(0.85);
+						METRO->initPath(path_centreSwitchLeft2, PathForward, 0);
 						autoState++;
 						break;
 					case 1:
@@ -590,8 +590,8 @@ public:
 				case 'R':
 					switch(autoState) {
 					case 0:
-						m_drivePID->setMaxOutput(0.85);
-						METRO->initPath(path_centreSwitchRight2, PathForward, 20);
+			//			m_drivePID->setMaxOutput(0.8);
+						METRO->initPath(path_centreSwitchRight2, PathForward, 0);
 						autoTimer->Reset();
 						autoState++;
 						break;
@@ -604,8 +604,8 @@ public:
 						break;
 					case 2:
 						if(autoTimer->Get() < 1.f) {
-							m_LFMotor->SetSpeed(-0.1f);
-							m_LBMotor->SetSpeed(-0.1f);
+							m_LFMotor->SetSpeed(-0.5f);
+							m_LBMotor->SetSpeed(-0.5f);
 							m_RFMotor->SetSpeed(0.5f);
 							m_RBMotor->SetSpeed(0.5f);
 						}
