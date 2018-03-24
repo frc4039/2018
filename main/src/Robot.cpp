@@ -79,7 +79,7 @@ public:
 //	int driveState, cheezyState, lowerIntakeState;
 //	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
 	bool twoCubeMode, currentError, joyBlues;
-	float currentGTime;
+	float currentGTime, switchShotSpeed;
 
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
@@ -243,6 +243,7 @@ public:
 		autoState = 0;
 		autoDelay = 0;
 		conveyorState = 0;
+		switchShotSpeed = 0.5;
 //		shiftToggleState1 = false;
 //		shiftToggleState2 = false;
 //		climberToggleState1 = false;
@@ -1007,6 +1008,7 @@ public:
 	void TeleopPeriodic() {
 /*		switch(driveState) {
 		case 1:*/
+		switchShotSpeed = limit(-0.5*m_GamepadOp->GetY(XboxController::kRightHand) + 0.5);
 		arcadeDrive();
 		arcadeShift();
 /*			break;
@@ -1065,8 +1067,6 @@ public:
 	}
 
 	void arcadeDrive() {
-		//R = +y - x;
-		//L = -y - x;
 		float joyX;
 		float joyY;
 
@@ -1115,8 +1115,8 @@ public:
 		switch(lowerIntakeState) {
 		case 0:
 			if(m_gripperDown->Get()) {
-				m_lowerIntakeL->SetSpeed(intakeFSpeed - intakeRSpeed);
-				m_lowerIntakeR->SetSpeed(intakeFSpeed - intakeRSpeed);
+				m_lowerIntakeL->SetSpeed(intakeFSpeed - 0.7*intakeRSpeed);
+				m_lowerIntakeR->SetSpeed(intakeFSpeed - 0.7*intakeRSpeed);
 			}
 			else {
 				m_lowerIntakeL->SetSpeed(0.5*(intakeFSpeed - intakeRSpeed));
@@ -1135,8 +1135,8 @@ public:
 				m_lowerIntakeR->SetSpeed(1.f);
 			}
 			else {
-				m_lowerIntakeL->SetSpeed(0.5f);
-				m_lowerIntakeR->SetSpeed(0.5f);
+				m_lowerIntakeL->SetSpeed(switchShotSpeed);
+				m_lowerIntakeR->SetSpeed(switchShotSpeed);
 			}
 
 			if(!m_Joystick->GetRawButton(9))
@@ -1148,6 +1148,7 @@ public:
 
 	void operateConveyor() {
 		float conveyorJoy = limit(m_GamepadOp->GetY(XboxController::kLeftHand));
+
 		if(m_Joystick->GetRawButton(10))
 			joyBlues = true;
 
@@ -1157,7 +1158,7 @@ public:
 				conveyorState = 10;
 
 			if(m_Joystick->GetRawButton(11) || m_Joystick->GetRawButton(12))
-				m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
+				m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
 			else
 				m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 
@@ -1171,8 +1172,8 @@ public:
 			}
 
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
-			m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
-			m_upperIntakeR->Set(ControlMode::PercentOutput, UPPER_SPEED);
+			m_upperIntakeL->Set(ControlMode::PercentOutput, switchShotSpeed);
+			m_upperIntakeR->Set(ControlMode::PercentOutput, switchShotSpeed);
 			break;
 		}
 	}
@@ -1273,13 +1274,13 @@ public:
 			gripperTimer->Reset();
 		}
 
-		if(m_GamepadOp->GetPOV(0) == GP_UP || m_Joystick->GetRawButton(7)) {
+		if(m_GamepadOp->GetPOV(0) == GP_UP) {
 			m_gripperUp->Set(true);
 #ifndef HAIL_MARY
 			m_gripperDown->Set(false);
 #endif
 		}
-		else if(m_GamepadOp->GetPOV(0) == GP_DOWN || m_Joystick->GetRawButton(8)) {
+		else if(m_GamepadOp->GetPOV(0) == GP_DOWN) {
 			m_gripperUp->Set(false);
 #ifndef HAIL_MARY
 			m_gripperDown->Set(true);
