@@ -47,10 +47,13 @@
 #define CONVEYOR_SPEED -1.f
 #define UPPER_SPEED 0.4f
 #define LOWER_SPEED 0.5f
+#define TALON_TIMEOUT 10
+#define TALON_LOOP_ID 0
 
 #define APPLES 14
 #define CURVE_RES 80
 #define LINE_RES 10
+#define SERVO_HOME -90.f
 
 //#define AUX_PWM
 #define PRACTICE_BOT
@@ -71,6 +74,7 @@ public:
 
 	TalonSRX *m_upperIntakeL, *m_upperIntakeR;
 	TalonSRX *m_climber1, *m_climber2;
+	TalonSRX *m_stretchExtend, *m_stretchL, *m_stretchR;
 
 	Solenoid *m_shiftLow;
 	Solenoid *m_shiftHigh;
@@ -79,7 +83,7 @@ public:
 //	int driveState, cheezyState, lowerIntakeState;
 //	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
 	bool twoCubeMode, currentError, joyBlues;
-	float currentGTime, switchShotSpeed;
+	float currentGTime, switchShotSpeed, servoHomeAngle;
 
 	XboxController *m_GamepadOp;
 	XboxController *m_GamepadDr;
@@ -120,7 +124,7 @@ public:
 	DigitalInput *m_beamSensorLower;
 
 	cs::UsbCamera cam0;
-	cs::UsbCamera cam1;
+//	cs::UsbCamera cam1;
 
 	Relay *m_mangoRingLight;
 
@@ -167,8 +171,8 @@ public:
 
 		cam0 = CameraServer::GetInstance()->StartAutomaticCapture(0);
 		cam0.SetExposureManual(50);
-		cam1 = CameraServer::GetInstance()->StartAutomaticCapture(1);
-		cam1.SetExposureManual(50);
+//		cam1 = CameraServer::GetInstance()->StartAutomaticCapture(1);
+	//	cam1.SetExposureManual(50);
 
 		m_lowerIntakeL = new VictorSP(1); // left intake
 		m_lowerIntakeR = new VictorSP(2); // right intake
@@ -179,6 +183,21 @@ public:
 
 		m_climber1 = new TalonSRX(3);
 		m_climber2 = new TalonSRX(4);
+
+		m_stretchExtend = new TalonSRX(5);
+/*		int absolutePosition = m_stretchExtend->GetSelectedSensorPosition(TALON_LOOP_ID);
+		m_stretchExtend->SetSelectedSensorPosition(absolutePosition, TALON_LOOP_ID, TALON_TIMEOUT);
+		m_stretchExtend->ConfigNominalOutputForward(0.f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigNominalOutputForward(0.f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigPeakOutputForward(1.f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigPeakOutputForward(-1.f, TALON_TIMEOUT);
+		m_stretchExtend->Config_kF(TALON_LOOP_ID, 0, TALON_TIMEOUT);
+		m_stretchExtend->Config_kP(TALON_LOOP_ID, 0, TALON_TIMEOUT);
+		m_stretchExtend->Config_kI(TALON_LOOP_ID, 0, TALON_TIMEOUT);
+		m_stretchExtend->Config_kD(TALON_LOOP_ID, 0, TALON_TIMEOUT);*/
+
+		m_stretchL = new TalonSRX(6);
+		m_stretchR = new TalonSRX(7);
 
 		m_Joystick = new Joystick(0); // ^
 		m_Joystick2 = new Joystick(1);// ^
@@ -244,6 +263,7 @@ public:
 		autoDelay = 0;
 		conveyorState = 0;
 		switchShotSpeed = 0.5;
+		servoHomeAngle = 0.f;
 //		shiftToggleState1 = false;
 //		shiftToggleState2 = false;
 //		climberToggleState1 = false;
@@ -397,6 +417,7 @@ public:
 				printf("BEAM SENSOR TRUE\n");
 			printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
 			printf("Left Encoder: %d | Right Encoder: %d | Gyro: %f\n", LRead, RRead, GRead);
+			printf("Servo Angle: %f | SAV: %f\n", m_tailgateServo->GetAngle(), servoHomeAngle);
 			printf("Auto Mode: %d | Auto Delay: %d\n\n\n", autoMode, autoDelay);
 		}
 	}
@@ -411,6 +432,9 @@ public:
 		m_conveyor->SetSpeed(0.f);
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
+		m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
+		m_stretchL->Set(ControlMode::PercentOutput, 0.f);
+		m_stretchR->Set(ControlMode::PercentOutput, 0.f);
 #ifndef HAIL_MARY
 		m_gripperDown->Set(true);
 #endif
@@ -1003,6 +1027,7 @@ public:
 		indicatorState = 0;
 		lowerIntakeState = 0;
 		joyBlues = false;
+		servoHomeAngle = 0.f;
 	}
 
 	void TeleopPeriodic() {
@@ -1022,7 +1047,7 @@ public:
 		operateIntake();
 		operateGripperPneumatics();
 		operateConveyor();
-//		applesServo();
+		applesServo();
 		indicateCube();
 	}
 
@@ -1146,6 +1171,13 @@ public:
 		}
 	}
 
+/*	void operateStretch() {
+		if(m_GamepadOp->GetStartButton())
+			m_stretchExtend->Set(ControlMode::Position, 1);
+		else if(m_GamepadOp->GetBackButton())
+			m_stretchExtend->Set(ControlMode::Position, 0);
+	}*/
+
 	void operateConveyor() {
 		float conveyorJoy = limit(m_GamepadOp->GetY(XboxController::kLeftHand));
 
@@ -1162,8 +1194,22 @@ public:
 			else
 				m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 
+			if(m_GamepadOp->GetXButton())
+				conveyorState = 5;
+
 			m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 			m_conveyor->SetSpeed(conveyorJoy);
+			m_stretchL->Set(ControlMode::PercentOutput, conveyorJoy);
+			m_stretchR->Set(ControlMode::PercentOutput, -conveyorJoy);
+			break;
+		case 5:
+			m_conveyor->SetSpeed(CONVEYOR_SPEED);
+			m_upperIntakeL->Set(ControlMode::PercentOutput, 0.1f);
+			m_upperIntakeR->Set(ControlMode::PercentOutput, 0.1f);
+
+			if(!m_GamepadOp->GetXButton())
+				conveyorState = 0;
+
 			break;
 		case 10:
 			if(m_GamepadOp->GetAButtonReleased() || (!m_Joystick->GetRawButton(10) && joyBlues)) {
@@ -1174,16 +1220,18 @@ public:
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
 			m_upperIntakeL->Set(ControlMode::PercentOutput, switchShotSpeed);
 			m_upperIntakeR->Set(ControlMode::PercentOutput, switchShotSpeed);
+			m_stretchL->Set(ControlMode::PercentOutput, switchShotSpeed);
+			m_stretchR->Set(ControlMode::PercentOutput, -switchShotSpeed);
 			break;
 		}
 	}
 
-/*	void applesServo() {
-		if(m_GamepadOp->GetBumper(XboxController::kRightHand))
-			m_tailgateServo->SetAngle(90);
+	void applesServo() {
+		if(m_Joystick->GetRawButton(11) || m_Joystick->GetRawButton(12) || m_GamepadOp->GetRawButton(GP_R))
+			m_tailgateServo->SetAngle(117.f);
 		else
-			m_tailgateServo->SetAngle(0);
-	}*/
+			m_tailgateServo->SetAngle(180.f);
+	}
 
 /*	void cheezyGripperPneumatics() {
 		if(m_GamepadDr->GetBumper(XboxController::kRightHand)) {
@@ -1212,52 +1260,6 @@ public:
 	}*/
 
 	void operateGripperPneumatics() {
-	/*	switch(lowerIntakeState) {
-		case 0:
-			m_squareExtend->Set(false);
-			m_squareRetract->Set(true);
-			m_gripperExtend->Set(false);
-			m_gripperRetract->Set(true);
-			if(m_GamepadOp->GetBButton()) {
-				lowerIntakeState++;
-				gripperTimer->Reset();
-			}
-			break;
-		case 1:
-			m_gripperExtend->Set(true);
-			m_gripperRetract->Set(false);
-			if(gripperTimer->Get() > 1.2f) {
-				m_squareExtend->Set(true);
-				m_squareRetract->Set(false);
-			}
-			if(m_GamepadOp->GetBButtonReleased())
-				lowerIntakeState++;
-			break;
-		case 2:
-			if(m_GamepadOp->GetXButton()) {
-				m_squareExtend->Set(false);
-				m_squareRetract->Set(true);
-			}
-			else {
-				m_squareExtend->Set(true);
-				m_squareRetract->Set(false);
-			}
-			if(m_GamepadOp->GetBButton()) {
-				lowerIntakeState++;
-				gripperTimer->Reset();
-			}
-			break;
-		case 3:
-			m_squareExtend->Set(false);
-			m_squareRetract->Set(true);
-			m_gripperExtend->Set(false);
-			m_gripperRetract->Set(true);
-
-			if(m_GamepadOp->GetBButtonReleased())
-				lowerIntakeState = 0;
-			break;
-		}*/
-
 		if(m_GamepadOp->GetBButton()) {
 			m_gripperExtend->Set(true);
 			m_gripperRetract->Set(false);
