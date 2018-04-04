@@ -49,6 +49,7 @@
 #define LOWER_SPEED 0.5f
 #define TALON_TIMEOUT 10
 #define TALON_LOOP_ID 0
+#define DEFAULT_MAXOUT 0.76
 
 #define APPLES 14
 #define CURVE_RES 80
@@ -80,8 +81,6 @@ public:
 	Solenoid *m_shiftHigh;
 
 	int autoState, autoMode, autoDelay, conveyorState, indicatorState, lowerIntakeState;
-//	int driveState, cheezyState, lowerIntakeState;
-//	bool shiftToggleState1, shiftToggleState2, intakeToggleState1, intakeToggleState2, climberToggleState1, climberToggleState2, autoRunTwelve;
 	bool twoCubeMode, currentError, joyBlues;
 	float currentGTime, switchShotSpeed, servoHomeAngle;
 
@@ -353,7 +352,7 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
-		int backupTwoCubeEnd[2] = {4500, -500};
+		int backupTwoCubeEnd[2] = {4500, -1000};
 		int cp28[2] = {5500, 4000}; //was 4000, 5000
 		int cp29[2] = {6000, -1000}; //was 8700, -1000
 		int cp282[2] = {6000, 000};
@@ -370,20 +369,20 @@ public:
 		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp282, cp31_2, centreLeftScore, CURVE_RES/2);
 
 		int pickupTwoCubeEnd[2] = {9000, -1000};
-		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
-		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 3);
+		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 2);
+		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 2);
 
-		m_turnPID = new SimPID(0.55, 0, 3.0, 0.0, 0.5);
+		m_turnPID = new SimPID(0.52, 0, 2.0, 0.0, 0.5);
 //		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
 
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
-		m_drivePID->setMaxOutput(0.7);
-		m_finalTurnPID = new SimPID(0.55, 0, 7.0, 0, 0.5);
+		m_drivePID->setMaxOutput(DEFAULT_MAXOUT);
+		m_finalTurnPID = new SimPID(0.55, 0, 7.0, 0, 1.0);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		m_turnPID->setContinuousAngle(true);
 
-		METRO = new PathFollower(500, PI/2, m_drivePID, m_turnPID, m_finalTurnPID);
+		METRO = new PathFollower(500, PI/3, m_drivePID, m_turnPID, m_finalTurnPID);
 		METRO->setIsDegrees(true);
 		//METRO->enableStartRamp();
 		METRO->setStartRamp(0.35, 1500);
@@ -559,7 +558,6 @@ public:
 						if(advancedAutoDrive()) {
 							autoState++;
 							autoTimer->Reset();
-							m_drivePID->setMaxOutput(0.7);
 						}
 						break;
 					case 2:
@@ -586,6 +584,8 @@ public:
 								METRO->initPath(path_twoCubeBackupLeft, PathBackward, 0);
 								autoMode = 7;
 								autoState++;
+								gripperTimer->Reset();
+								gripperTimer->Start();
 							}
 
 							if(plateColour[1] == 'L' && !twoCubeMode)
@@ -624,7 +624,6 @@ public:
 						if(advancedAutoDrive()) {
 							autoState++;
 							autoTimer->Reset();
-							m_drivePID->setMaxOutput(0.7);
 						}
 						break;
 					case 2:
@@ -652,6 +651,8 @@ public:
 								METRO->initPath(path_twoCubeBackupRight, PathBackward, 0);
 								autoMode = 7;
 								autoState++;
+								gripperTimer->Reset();
+								gripperTimer->Start();
 							}
 
 							if(plateColour[1] == 'R' && !twoCubeMode)
@@ -866,8 +867,7 @@ public:
 					if(advancedAutoDrive()) {
 						autoState++;
 						METRO->initPath(path_twoCubePickup, PathForward, 0);
-						gripperTimer->Reset();
-						gripperTimer->Start();
+						m_drivePID->setMaxOutput(0.9f);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
@@ -876,12 +876,14 @@ public:
 
 					m_lowerIntakeL->SetSpeed(-0.8f);
 					m_lowerIntakeR->SetSpeed(-0.8f);
-					gripperTimer->Reset();
+					m_squareExtend->Set(true);
+					m_squareRetract->Set(false);
 
 					advancedAutoDrive();
-					if(!m_beamSensorLower->Get() || autoTimer->Get() > 1.5f) {
+					if(!m_beamSensorLower->Get() || autoTimer->Get() > 2.0f) {
 						autoState++;
 						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
+						m_drivePID->setMaxOutput(1.f);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
@@ -889,8 +891,16 @@ public:
 				case 5:
 					m_gripperRetract->Set(true);
 					m_gripperExtend->Set(false);
-					m_lowerIntakeL->SetSpeed(-0.5f);
-					m_lowerIntakeR->SetSpeed(-0.5f);
+					m_squareExtend->Set(false);
+					m_squareRetract->Set(true);
+					if(autoTimer->Get() < 1.0) {
+						m_lowerIntakeL->SetSpeed(-0.5f);
+						m_lowerIntakeR->SetSpeed(-0.5f);
+					}
+					else {
+						m_lowerIntakeL->SetSpeed(0.f);
+						m_lowerIntakeR->SetSpeed(0.f);
+					}
 
 					if(advancedAutoDrive()) {
 						switch(plateColour[0]) {
@@ -901,6 +911,7 @@ public:
 							METRO->initPath(path_twoCubeShootRight, PathForward, 0);
 							break;
 						}
+						m_drivePID->setMaxOutput(DEFAULT_MAXOUT);
 						autoState++;
 					}
 					break;
