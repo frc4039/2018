@@ -49,7 +49,7 @@
 #define LOWER_SPEED 0.5f
 #define TALON_TIMEOUT 10
 #define TALON_LOOP_ID 0
-#define DEFAULT_MAXOUT 0.76
+#define DEFAULT_MAXOUT 0.7
 
 #define APPLES 14
 #define CURVE_RES 80
@@ -57,7 +57,7 @@
 #define SERVO_HOME -90.f
 
 //#define AUX_PWM
-#define PRACTICE_BOT
+//#define PRACTICE_BOT
 //#define HAIL_MARY
 
 class Robot: public frc::IterativeRobot {
@@ -74,8 +74,8 @@ public:
 	VictorSP *m_conveyor;
 
 	TalonSRX *m_upperIntakeL, *m_upperIntakeR;
-	TalonSRX *m_climber1, *m_climber2;
-	TalonSRX *m_stretchExtend, *m_stretchL, *m_stretchR;
+	TalonSRX *m_climber1, *m_stretchIntake;
+	TalonSRX *m_stretchExtend;
 
 	Solenoid *m_shiftLow;
 	Solenoid *m_shiftHigh;
@@ -180,23 +180,23 @@ public:
 		m_upperIntakeL = new TalonSRX(1);
 		m_upperIntakeR = new TalonSRX(2);
 
-		m_climber1 = new TalonSRX(3);
-		m_climber2 = new TalonSRX(4);
+//		m_climber1 = new TalonSRX(3);
+		m_stretchIntake = new TalonSRX(4);
 
 		m_stretchExtend = new TalonSRX(5);
 /*		int absolutePosition = m_stretchExtend->GetSelectedSensorPosition(TALON_LOOP_ID);
 		m_stretchExtend->SetSelectedSensorPosition(absolutePosition, TALON_LOOP_ID, TALON_TIMEOUT);
 		m_stretchExtend->ConfigNominalOutputForward(0.f, TALON_TIMEOUT);
 		m_stretchExtend->ConfigNominalOutputForward(0.f, TALON_TIMEOUT);
-		m_stretchExtend->ConfigPeakOutputForward(1.f, TALON_TIMEOUT);
-		m_stretchExtend->ConfigPeakOutputForward(-1.f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigPeakOutputForward(0.5f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigPeakOutputForward(-0.5f, TALON_TIMEOUT);
 		m_stretchExtend->Config_kF(TALON_LOOP_ID, 0, TALON_TIMEOUT);
 		m_stretchExtend->Config_kP(TALON_LOOP_ID, 0, TALON_TIMEOUT);
 		m_stretchExtend->Config_kI(TALON_LOOP_ID, 0, TALON_TIMEOUT);
 		m_stretchExtend->Config_kD(TALON_LOOP_ID, 0, TALON_TIMEOUT);*/
 
-		m_stretchL = new TalonSRX(6);
-		m_stretchR = new TalonSRX(7);
+//		m_stretchL = new TalonSRX(6);
+	//	m_stretchR = new TalonSRX(7);
 
 		m_Joystick = new Joystick(0); // ^
 		m_Joystick2 = new Joystick(1);// ^
@@ -377,7 +377,7 @@ public:
 
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(DEFAULT_MAXOUT);
-		m_finalTurnPID = new SimPID(0.55, 0, 7.0, 0, 1.0);
+		m_finalTurnPID = new SimPID(0.52, 0, 7.0, 0, 1.0);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		m_turnPID->setContinuousAngle(true);
@@ -432,8 +432,8 @@ public:
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
 		m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
-		m_stretchL->Set(ControlMode::PercentOutput, 0.f);
-		m_stretchR->Set(ControlMode::PercentOutput, 0.f);
+//		m_stretchL->Set(ControlMode::PercentOutput, 0.f);
+	//	m_stretchR->Set(ControlMode::PercentOutput, 0.f);
 #ifndef HAIL_MARY
 		m_gripperDown->Set(true);
 #endif
@@ -867,7 +867,7 @@ public:
 					if(advancedAutoDrive()) {
 						autoState++;
 						METRO->initPath(path_twoCubePickup, PathForward, 0);
-						m_drivePID->setMaxOutput(0.9f);
+						m_drivePID->setMaxOutput(0.8f);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
@@ -880,10 +880,10 @@ public:
 					m_squareRetract->Set(false);
 
 					advancedAutoDrive();
-					if(!m_beamSensorLower->Get() || autoTimer->Get() > 2.0f) {
+					if(!m_beamSensorLower->Get() || autoTimer->Get() > 1.4f) {
 						autoState++;
 						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
-						m_drivePID->setMaxOutput(1.f);
+						m_drivePID->setMaxOutput(0.9f);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
@@ -893,9 +893,9 @@ public:
 					m_gripperExtend->Set(false);
 					m_squareExtend->Set(false);
 					m_squareRetract->Set(true);
-					if(autoTimer->Get() < 1.0) {
-						m_lowerIntakeL->SetSpeed(-0.5f);
-						m_lowerIntakeR->SetSpeed(-0.5f);
+					if(autoTimer->Get() < 1.f && m_beamSensorLower->Get()) {
+						m_lowerIntakeL->SetSpeed(-1.f);
+						m_lowerIntakeR->SetSpeed(-1.f);
 					}
 					else {
 						m_lowerIntakeL->SetSpeed(0.f);
@@ -913,6 +913,7 @@ public:
 						}
 						m_drivePID->setMaxOutput(DEFAULT_MAXOUT);
 						autoState++;
+						autoTimer->Reset();
 					}
 					break;
 				case 6:
@@ -1059,6 +1060,7 @@ public:
 		operateGripperPneumatics();
 		operateConveyor();
 		applesServo();
+//		calibrateServo();
 		indicateCube();
 	}
 
@@ -1182,12 +1184,16 @@ public:
 		}
 	}
 
-/*	void operateStretch() {
+	void operateStretch() {
 		if(m_GamepadOp->GetStartButton())
-			m_stretchExtend->Set(ControlMode::Position, 1);
+			m_stretchExtend->Set(ControlMode::PercentOutput, 0.5f);
 		else if(m_GamepadOp->GetBackButton())
-			m_stretchExtend->Set(ControlMode::Position, 0);
-	}*/
+			m_stretchExtend->Set(ControlMode::PercentOutput, -0.5f);
+		else
+			m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
+
+
+	}
 
 	void operateConveyor() {
 		float conveyorJoy = limit(m_GamepadOp->GetY(XboxController::kLeftHand));
@@ -1210,8 +1216,7 @@ public:
 
 			m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 			m_conveyor->SetSpeed(conveyorJoy);
-			m_stretchL->Set(ControlMode::PercentOutput, conveyorJoy);
-			m_stretchR->Set(ControlMode::PercentOutput, -conveyorJoy);
+	//		m_stretchIntake->Set(ControlMode::PercentOutput, -conveyorJoy);
 			break;
 		case 5:
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
@@ -1231,17 +1236,31 @@ public:
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
 			m_upperIntakeL->Set(ControlMode::PercentOutput, switchShotSpeed);
 			m_upperIntakeR->Set(ControlMode::PercentOutput, switchShotSpeed);
-			m_stretchL->Set(ControlMode::PercentOutput, switchShotSpeed);
-			m_stretchR->Set(ControlMode::PercentOutput, -switchShotSpeed);
+//			m_stretchIntake->Set(ControlMode::PercentOutput, switchShotSpeed);
 			break;
 		}
 	}
 
 	void applesServo() {
+#ifdef PRACTICE_BOT
 		if(m_Joystick->GetRawButton(11) || m_Joystick->GetRawButton(12) || m_GamepadOp->GetRawButton(GP_R))
 			m_tailgateServo->SetAngle(117.f);
 		else
 			m_tailgateServo->SetAngle(180.f);
+#else
+		if(m_Joystick->GetRawButton(11) || m_Joystick->GetRawButton(12) || m_GamepadOp->GetRawButton(GP_R))
+			m_tailgateServo->SetAngle(84.f);
+		else
+			m_tailgateServo->SetAngle(156.f);
+#endif
+	}
+
+	void calibrateServo() {
+		if(m_Joystick->GetRawButton(7))
+			servoHomeAngle++;
+		if(m_Joystick->GetRawButton(8))
+			servoHomeAngle--;
+		m_tailgateServo->SetAngle(servoHomeAngle);
 	}
 
 /*	void cheezyGripperPneumatics() {
