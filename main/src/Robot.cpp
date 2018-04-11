@@ -57,8 +57,9 @@
 #define SERVO_HOME -90.f
 
 //#define AUX_PWM
-//#define PRACTICE_BOT
+#define PRACTICE_BOT
 //#define HAIL_MARY
+#define STRETCH_ENABLED
 
 class Robot: public frc::IterativeRobot {
 public:
@@ -74,13 +75,14 @@ public:
 	VictorSP *m_conveyor;
 
 	TalonSRX *m_upperIntakeL, *m_upperIntakeR;
-	TalonSRX *m_climber1, *m_stretchIntake;
+	TalonSRX *m_climber1;
 	TalonSRX *m_stretchExtend;
+	VictorSPX *m_stretchIntake;
 
 	Solenoid *m_shiftLow;
 	Solenoid *m_shiftHigh;
 
-	int autoState, autoMode, autoDelay, conveyorState, indicatorState, lowerIntakeState;
+	int autoState, autoMode, autoDelay, conveyorState, indicatorState, lowerIntakeState, stretchState;
 	bool twoCubeMode, currentError, joyBlues;
 	float currentGTime, switchShotSpeed, servoHomeAngle;
 
@@ -116,6 +118,7 @@ public:
 	Timer *gripperTimer;
 	Timer *indicatorTimer;
 	Timer *brownTimer;
+	Timer *stretchTimer;
 	int printDelay;
 
 	Servo *m_tailgateServo;
@@ -181,19 +184,23 @@ public:
 		m_upperIntakeR = new TalonSRX(2);
 
 //		m_climber1 = new TalonSRX(3);
-		m_stretchIntake = new TalonSRX(4);
+		m_stretchIntake = new VictorSPX(4);
 
 		m_stretchExtend = new TalonSRX(5);
-/*		int absolutePosition = m_stretchExtend->GetSelectedSensorPosition(TALON_LOOP_ID);
-		m_stretchExtend->SetSelectedSensorPosition(absolutePosition, TALON_LOOP_ID, TALON_TIMEOUT);
+#ifdef STRETCH_ENABLED
+//		int absolutePosition = m_stretchExtend->GetSelectedSensorPosition(TALON_LOOP_ID);
+		m_stretchExtend->SetSelectedSensorPosition(FeedbackDevice::CTRE_MagEncoder_Relative, TALON_LOOP_ID, TALON_TIMEOUT);
 		m_stretchExtend->ConfigNominalOutputForward(0.f, TALON_TIMEOUT);
-		m_stretchExtend->ConfigNominalOutputForward(0.f, TALON_TIMEOUT);
-		m_stretchExtend->ConfigPeakOutputForward(0.5f, TALON_TIMEOUT);
-		m_stretchExtend->ConfigPeakOutputForward(-0.5f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigNominalOutputReverse(0.f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigPeakOutputForward(1.f, TALON_TIMEOUT);
+		m_stretchExtend->ConfigPeakOutputReverse(-0.1f, TALON_TIMEOUT);
 		m_stretchExtend->Config_kF(TALON_LOOP_ID, 0, TALON_TIMEOUT);
-		m_stretchExtend->Config_kP(TALON_LOOP_ID, 0, TALON_TIMEOUT);
+		m_stretchExtend->Config_kP(TALON_LOOP_ID, 0.1, TALON_TIMEOUT);
 		m_stretchExtend->Config_kI(TALON_LOOP_ID, 0, TALON_TIMEOUT);
-		m_stretchExtend->Config_kD(TALON_LOOP_ID, 0, TALON_TIMEOUT);*/
+		m_stretchExtend->Config_kD(TALON_LOOP_ID, 2.0, TALON_TIMEOUT);
+		m_stretchExtend->ConfigMotionAcceleration(3029, TALON_TIMEOUT);
+		m_stretchExtend->ConfigMotionCruiseVelocity(3029, TALON_TIMEOUT);
+#endif
 
 //		m_stretchL = new TalonSRX(6);
 	//	m_stretchR = new TalonSRX(7);
@@ -248,6 +255,10 @@ public:
 		indicatorTimer->Reset();
 		indicatorTimer->Stop();
 
+		stretchTimer = new Timer();
+		stretchTimer->Reset();
+		stretchTimer->Stop();
+
 		brownTimer = new Timer();
 		brownTimer->Reset();
 		brownTimer->Stop();
@@ -257,6 +268,7 @@ public:
 	//	cheezyState = 1;
 		lowerIntakeState = 0;
 		indicatorState = 0;
+		stretchState = 0;
 		autoMode = 0;
 		autoState = 0;
 		autoDelay = 0;
@@ -352,9 +364,9 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
-		int backupTwoCubeEnd[2] = {4500, -1000};
+		int backupTwoCubeEnd[2] = {4500, -500}; //was 4500, -2000
 		int cp28[2] = {5500, 4000}; //was 4000, 5000
-		int cp29[2] = {6000, -1000}; //was 8700, -1000
+		int cp29[2] = {6000, -1000}; //was 6000, -1000
 		int cp282[2] = {6000, 000};
 		int cp292[2] = {6500, 3000};
 		int centreRightScore[2] = {9500, 3500};
@@ -362,22 +374,22 @@ public:
 		path_twoCubeShootRight = new PathCurve(backupTwoCubeEnd, cp282, cp292, centreRightScore, CURVE_RES/2);
 
 		int cp30[2] = {6000, -6000}; //was 4000, -6000
-		int cp31[2] = {6000, -500}; //was 8000, -550
+		int cp31[2] = {6000, -550}; //was 8000, -550
 		int cp31_2[2] = {6500, -4500};
 		int centreLeftScore[2] = {9500, -5000};
 		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES);
 		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp282, cp31_2, centreLeftScore, CURVE_RES/2);
 
-		int pickupTwoCubeEnd[2] = {9000, -1000};
-		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 2);
+		int pickupTwoCubeEnd[2] = {9000, -1000}; //was 9000, -1000
+		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 2);
 
-		m_turnPID = new SimPID(0.52, 0, 2.0, 0.0, 0.5);
+		m_turnPID = new SimPID(0.55, 0, 3.0, 0.0, 0.5);
 //		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
 
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
 		m_drivePID->setMaxOutput(DEFAULT_MAXOUT);
-		m_finalTurnPID = new SimPID(0.52, 0, 7.0, 0, 1.0);
+		m_finalTurnPID = new SimPID(0.52, 0, 7.0, 0, 0.5);
 		m_finalTurnPID->setContinuousAngle(true);
 
 		m_turnPID->setContinuousAngle(true);
@@ -400,6 +412,9 @@ public:
 				m_leftEncoder->Reset();
 				m_rightEncoder->Reset();
 				METRO->reset();
+#ifdef STRETCH_ENABLED
+				m_stretchExtend->SetSelectedSensorPosition(0, TALON_LOOP_ID, TALON_TIMEOUT);
+#endif
 			}
 		}
 
@@ -416,7 +431,9 @@ public:
 				printf("BEAM SENSOR TRUE\n");
 			printf("robot position x: %d\ty:%d\n", METRO->getXPos(), METRO->getYPos());
 			printf("Left Encoder: %d | Right Encoder: %d | Gyro: %f\n", LRead, RRead, GRead);
-			printf("Servo Angle: %f | SAV: %f\n", m_tailgateServo->GetAngle(), servoHomeAngle);
+#ifdef STRETCH_ENABLED
+			printf("StretchPos: %d\n", m_stretchExtend->GetSelectedSensorPosition(TALON_LOOP_ID));
+#endif
 			printf("Auto Mode: %d | Auto Delay: %d\n\n\n", autoMode, autoDelay);
 		}
 	}
@@ -867,7 +884,7 @@ public:
 					if(advancedAutoDrive()) {
 						autoState++;
 						METRO->initPath(path_twoCubePickup, PathForward, 0);
-						m_drivePID->setMaxOutput(0.8f);
+//						m_drivePID->setMaxOutput(0.8f);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
@@ -880,7 +897,7 @@ public:
 					m_squareRetract->Set(false);
 
 					advancedAutoDrive();
-					if(!m_beamSensorLower->Get() || autoTimer->Get() > 1.4f) {
+					if(!m_beamSensorLower->Get() || autoTimer->Get() > 2.f) {
 						autoState++;
 						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
 						m_drivePID->setMaxOutput(0.9f);
@@ -1040,6 +1057,7 @@ public:
 		lowerIntakeState = 0;
 		joyBlues = false;
 		servoHomeAngle = 0.f;
+		stretchState = 0;
 	}
 
 	void TeleopPeriodic() {
@@ -1059,9 +1077,14 @@ public:
 		operateIntake();
 		operateGripperPneumatics();
 		operateConveyor();
+#ifndef STRETCH_ENABLED
 		applesServo();
+#endif
 //		calibrateServo();
 		indicateCube();
+#ifdef STRETCH_ENABLED
+		operateStretch();
+#endif
 	}
 
 	void arcadeShift() {
@@ -1149,12 +1172,21 @@ public:
 	void operateIntake() {
 		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
 		float intakeRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
+		float intakeDriveSpeed = limit2(-m_Joystick->GetY(), 0.8, 0.2);
 
 		switch(lowerIntakeState) {
 		case 0:
 			if(m_gripperDown->Get()) {
-				m_lowerIntakeL->SetSpeed(intakeFSpeed - 0.7*intakeRSpeed);
-				m_lowerIntakeR->SetSpeed(intakeFSpeed - 0.7*intakeRSpeed);
+/*				m_lowerIntakeL->SetSpeed(intakeFSpeed - 0.7*intakeRSpeed);
+				m_lowerIntakeR->SetSpeed(intakeFSpeed - 0.7*intakeRSpeed);*/
+				if(m_squareExtend->Get()) {
+					m_lowerIntakeL->SetSpeed(-intakeDriveSpeed);
+					m_lowerIntakeR->SetSpeed(-intakeDriveSpeed);
+				}
+				else {
+					m_lowerIntakeL->SetSpeed(intakeFSpeed - intakeRSpeed);
+					m_lowerIntakeR->SetSpeed(intakeFSpeed - intakeRSpeed);
+				}
 			}
 			else {
 				m_lowerIntakeL->SetSpeed(0.5*(intakeFSpeed - intakeRSpeed));
@@ -1185,14 +1217,25 @@ public:
 	}
 
 	void operateStretch() {
-		if(m_GamepadOp->GetStartButton())
-			m_stretchExtend->Set(ControlMode::PercentOutput, 0.5f);
-		else if(m_GamepadOp->GetBackButton())
-			m_stretchExtend->Set(ControlMode::PercentOutput, -0.5f);
-		else
+		switch(stretchState) {
+		case 0:
 			m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
-
-
+			if(m_GamepadOp->GetStartButton())
+				stretchState++;
+			break;
+		case 1:
+			m_stretchExtend->Set(ControlMode::Position, 135000);
+			if(m_GamepadOp->GetBackButton())
+				stretchState++;
+			break;
+		case 2:
+			if(m_stretchExtend->GetSelectedSensorPosition(0) >= 100000)
+				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
+			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 100000)
+				m_stretchExtend->Set(ControlMode::PercentOutput, 0.2f);
+			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 60000)
+				stretchState = 0;
+		}
 	}
 
 	void operateConveyor() {
@@ -1216,7 +1259,9 @@ public:
 
 			m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 			m_conveyor->SetSpeed(conveyorJoy);
-	//		m_stretchIntake->Set(ControlMode::PercentOutput, -conveyorJoy);
+#ifdef STRETCH_ENABLED
+			m_stretchIntake->Set(ControlMode::PercentOutput, conveyorJoy);
+#endif
 			break;
 		case 5:
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
@@ -1236,7 +1281,9 @@ public:
 			m_conveyor->SetSpeed(CONVEYOR_SPEED);
 			m_upperIntakeL->Set(ControlMode::PercentOutput, switchShotSpeed);
 			m_upperIntakeR->Set(ControlMode::PercentOutput, switchShotSpeed);
-//			m_stretchIntake->Set(ControlMode::PercentOutput, switchShotSpeed);
+#ifdef STRETCH_ENABLED
+			m_stretchIntake->Set(ControlMode::PercentOutput, -switchShotSpeed);
+#endif
 			break;
 		}
 	}
@@ -1306,18 +1353,16 @@ public:
 			gripperTimer->Reset();
 		}
 
+#ifndef STRETCH_ENABLED
 		if(m_GamepadOp->GetPOV(0) == GP_UP) {
 			m_gripperUp->Set(true);
-#ifndef HAIL_MARY
 			m_gripperDown->Set(false);
-#endif
 		}
 		else if(m_GamepadOp->GetPOV(0) == GP_DOWN) {
 			m_gripperUp->Set(false);
-#ifndef HAIL_MARY
 			m_gripperDown->Set(true);
-#endif
 		}
+#endif
 	}
 
 /*	void cheezyDrive() {
@@ -1350,10 +1395,18 @@ public:
 
 // #.f is used to tell the computer that the number here is not a whole number(1).
 	float limit(float n) { // The range and domain are equal to 1.f and -1.f
-		if(n>1.f)
+		if(n > 1.f)
 			return 1.f; // If "n" is greater then 1.f then return positive 1.f
-		if(n<-1.f)
+		if(n < -1.f)
 			return -1.f; // If "n" is less then -1.f then return negative -1.f
+		return n;
+	}
+
+	float limit2(float n, float max, float min) {
+		if(n > max)
+			return max;
+		if(n < min)
+			return min;
 		return n;
 	}
 
