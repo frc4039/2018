@@ -57,9 +57,9 @@
 #define SERVO_HOME -90.f
 
 //#define AUX_PWM
-#define PRACTICE_BOT
+//#define PRACTICE_BOT
 //#define HAIL_MARY
-#define STRETCH_ENABLED
+//#define STRETCH_ENABLED
 
 class Robot: public frc::IterativeRobot {
 public:
@@ -454,6 +454,7 @@ public:
 #ifndef HAIL_MARY
 		m_gripperDown->Set(true);
 #endif
+		stretchTimer->Start();
 		m_gripperUp->Set(false);
 		m_squareExtend->Set(false);
 		m_squareRetract->Set(true);
@@ -593,6 +594,9 @@ public:
 						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
+#ifdef STRETCH_ENABLED
+						m_stretchIntake->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+#endif
 						if(!twoCubeMode)
 							METRO->initPath(path_backupLeft, PathBackward, 180);
 
@@ -618,6 +622,9 @@ public:
 						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 						m_conveyor->SetSpeed(0.f);
+#ifdef STRETCH_ENABLED
+						m_stretchIntake->Set(ControlMode::PercentOutput, 0.f);
+#endif
 						if(advancedAutoDrive())
 							autoState++;
 						break;
@@ -659,6 +666,9 @@ public:
 						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, UPPER_SPEED);
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
+#ifdef STRETCH_ENABLED
+						m_stretchIntake->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+#endif
 
 						if(!twoCubeMode)
 							METRO->initPath(path_backupRight, PathBackward, -180);
@@ -685,6 +695,9 @@ public:
 						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 						m_conveyor->SetSpeed(0.f);
+#ifdef STRETCH_ENABLED
+						m_stretchIntake->Set(ControlMode::PercentOutput, 0.f);
+#endif
 						if(advancedAutoDrive())
 							autoState++;
 						break;
@@ -731,11 +744,17 @@ public:
 							m_conveyor->SetSpeed(CONVEYOR_SPEED);
 							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
 							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
+#ifdef STRETCH_ENABLED
+							m_stretchIntake->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+#endif
 						}
 						else {
 							m_conveyor->SetSpeed(0.f);
 							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+#ifdef STRETCH_ENABLED
+							m_stretchIntake->Set(ControlMode::PercentOutput, 0.f);
+#endif
 						}
 						break;
 					}
@@ -778,11 +797,17 @@ public:
 							m_conveyor->SetSpeed(CONVEYOR_SPEED);
 							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.4f);
 							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.4f);
+#ifdef STRETCH_ENABLED
+							m_stretchIntake->Set(ControlMode::PercentOutput, -UPPER_SPEED);
+#endif
 						}
 						else {
 							m_conveyor->SetSpeed(0.f);
 							m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 							m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+#ifdef STRETCH_ENABLED
+							m_stretchIntake->Set(ControlMode::PercentOutput, 0.f);
+#endif
 						}
 						break;
 					}
@@ -1052,6 +1077,8 @@ public:
 		gripperTimer->Start();
 		brownTimer->Reset();
 		brownTimer->Start();
+		stretchTimer->Reset();
+		stretchTimer->Start();
 		currentGTime = 0.f;
 		indicatorState = 0;
 		lowerIntakeState = 0;
@@ -1217,11 +1244,25 @@ public:
 	}
 
 	void operateStretch() {
+		if(m_GamepadOp->GetRawButton(GP_R) && m_GamepadOp->GetRawButton(GP_L)) {
+			m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
+		}
+		else if(m_GamepadOp->GetRawButtonReleased(GP_R) || m_GamepadOp->GetRawButtonReleased(GP_L)) {
+			m_stretchExtend->SetSelectedSensorPosition(0, TALON_LOOP_ID, TALON_TIMEOUT);
+			stretchState = 0;
+		}
+
 		switch(stretchState) {
 		case 0:
-			m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
+			if(!(m_GamepadOp->GetRawButton(GP_R) && m_GamepadOp->GetRawButton(GP_L)))
+				m_stretchExtend->Set(ControlMode::Position, 0);
+
 			if(m_GamepadOp->GetStartButton())
 				stretchState++;
+			if(m_GamepadOp->GetPOV(0) == GP_UP) {
+				stretchState = 3;
+				stretchTimer->Reset();
+			}
 			break;
 		case 1:
 			m_stretchExtend->Set(ControlMode::Position, 135000);
@@ -1230,11 +1271,38 @@ public:
 			break;
 		case 2:
 			if(m_stretchExtend->GetSelectedSensorPosition(0) >= 100000)
-				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
-			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 100000)
+				m_stretchExtend->Set(ControlMode::PercentOutput, -0.1f);
+			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 100000 && m_stretchExtend->GetSelectedSensorPosition(0) > 50000)
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.2f);
-			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 60000)
+			else if(m_GamepadOp->GetRawButton(GP_R) && m_GamepadOp->GetRawButton(GP_L))
+				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
+			break;
+		case 3:
+			if(stretchTimer->Get() < 2.0)
+				m_stretchExtend->Set(ControlMode::Position, 40000);
+			else
+				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
+
+			if(stretchTimer->Get() > 0.7) {
+				m_gripperUp->Set(true);
+				m_gripperDown->Set(false);
+			}
+
+			if(m_GamepadOp->GetPOV(0) == GP_DOWN) {
+				stretchTimer->Reset();
+				stretchState++;
+			}
+			break;
+		case 4:
+			if(stretchTimer->Get() < 2.0)
+				m_stretchExtend->Set(ControlMode::Position, 40000);
+			else {
+				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 				stretchState = 0;
+			}
+
+			m_gripperUp->Set(false);
+			m_gripperDown->Set(true);
 		}
 	}
 
@@ -1282,7 +1350,10 @@ public:
 			m_upperIntakeL->Set(ControlMode::PercentOutput, switchShotSpeed);
 			m_upperIntakeR->Set(ControlMode::PercentOutput, switchShotSpeed);
 #ifdef STRETCH_ENABLED
-			m_stretchIntake->Set(ControlMode::PercentOutput, -switchShotSpeed);
+			if(stretchState != 1)
+				m_stretchIntake->Set(ControlMode::PercentOutput, -switchShotSpeed);
+			else
+				m_stretchIntake->Set(ControlMode::PercentOutput, switchShotSpeed);
 #endif
 			break;
 		}
