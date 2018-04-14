@@ -370,21 +370,21 @@ public:
 		int cp282[2] = {6000, 000};
 		int cp292[2] = {6500, 3000};
 		int centreRightScore[2] = {9500, 3500};
-		path_twoCubeBackupRight = new PathCurve(centreRightEnd2, cp28, cp29, backupTwoCubeEnd, CURVE_RES);
+		path_twoCubeBackupRight = new PathCurve(centreRightEnd2, cp28, cp29, backupTwoCubeEnd, CURVE_RES/2);
 		path_twoCubeShootRight = new PathCurve(backupTwoCubeEnd, cp282, cp292, centreRightScore, CURVE_RES/2);
 
 		int cp30[2] = {6000, -6000}; //was 4000, -6000
 		int cp31[2] = {6000, -550}; //was 8000, -550
 		int cp31_2[2] = {6500, -4500};
 		int centreLeftScore[2] = {9500, -5000};
-		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES);
+		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES/2);
 		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp282, cp31_2, centreLeftScore, CURVE_RES/2);
 
 		int pickupTwoCubeEnd[2] = {9000, -1000}; //was 9000, -1000
 		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 2);
-
-		m_turnPID = new SimPID(0.55, 0, 3.0, 0.0, 0.5);
+//TODO
+		m_turnPID = new SimPID(0.3, 0, 1.0, 0.0, 0);
 //		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
 
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
@@ -579,7 +579,7 @@ public:
 						}
 						break;
 					case 2:
-						if(autoTimer->Get() < 1.f) {
+						if(autoTimer->Get() < 0.5f) {
 							m_LFMotor->SetSpeed(-0.5f);
 							m_LBMotor->SetSpeed(-0.5f);
 							m_RFMotor->SetSpeed(0.5f);
@@ -651,7 +651,7 @@ public:
 						}
 						break;
 					case 2:
-						if(autoTimer->Get() < 1.f) {
+						if(autoTimer->Get() < 0.5f) {
 							m_LFMotor->SetSpeed(-0.5f);
 							m_LBMotor->SetSpeed(-0.5f);
 							m_RFMotor->SetSpeed(0.5f);
@@ -925,7 +925,7 @@ public:
 					if(!m_beamSensorLower->Get() || autoTimer->Get() > 2.f) {
 						autoState++;
 						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
-						m_drivePID->setMaxOutput(0.9);
+						//m_drivePID->setMaxOutput(0.9);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
