@@ -49,7 +49,7 @@
 #define LOWER_SPEED 0.5f
 #define TALON_TIMEOUT 10
 #define TALON_LOOP_ID 0
-#define DEFAULT_MAXOUT 0.7
+#define DEFAULT_MAXOUT 0.68
 
 #define APPLES 14
 #define CURVE_RES 80
@@ -925,7 +925,7 @@ public:
 					if(!m_beamSensorLower->Get() || autoTimer->Get() > 2.f) {
 						autoState++;
 						METRO->initPath(path_twoCubeBackupLine, PathBackward, 0);
-						m_drivePID->setMaxOutput(0.9f);
+						m_drivePID->setMaxOutput(0.9);
 						autoTimer->Reset();
 						autoTimer->Start();
 					}
@@ -953,7 +953,6 @@ public:
 							METRO->initPath(path_twoCubeShootRight, PathForward, 0);
 							break;
 						}
-						m_drivePID->setMaxOutput(DEFAULT_MAXOUT);
 						autoState++;
 						autoTimer->Reset();
 					}
@@ -1199,7 +1198,7 @@ public:
 	void operateIntake() {
 		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
 		float intakeRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
-		float intakeDriveSpeed = limit2(-m_Joystick->GetY(), 0.8, 0.2);
+		float intakeDriveSpeed = limit2(-m_Joystick->GetY() - intakeRSpeed, 0.8, 0.2);
 
 		switch(lowerIntakeState) {
 		case 0:
@@ -1265,21 +1264,21 @@ public:
 			}
 			break;
 		case 1:
-			m_stretchExtend->Set(ControlMode::Position, 135000);
+			m_stretchExtend->Set(ControlMode::Position, 192000);
 			if(m_GamepadOp->GetBackButton())
 				stretchState++;
 			break;
 		case 2:
-			if(m_stretchExtend->GetSelectedSensorPosition(0) >= 100000)
+			if(m_stretchExtend->GetSelectedSensorPosition(0) >= 120000)
 				m_stretchExtend->Set(ControlMode::PercentOutput, -0.1f);
-			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 100000 && m_stretchExtend->GetSelectedSensorPosition(0) > 50000)
+			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 120000 && m_stretchExtend->GetSelectedSensorPosition(0) > 60000)
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.2f);
 			else if(m_GamepadOp->GetRawButton(GP_R) && m_GamepadOp->GetRawButton(GP_L))
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 			break;
 		case 3:
 			if(stretchTimer->Get() < 2.0)
-				m_stretchExtend->Set(ControlMode::Position, 40000);
+				m_stretchExtend->Set(ControlMode::Position, 57100);
 			else
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 
@@ -1295,7 +1294,7 @@ public:
 			break;
 		case 4:
 			if(stretchTimer->Get() < 2.0)
-				m_stretchExtend->Set(ControlMode::Position, 40000);
+				m_stretchExtend->Set(ControlMode::Position, 57100);
 			else {
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 				stretchState = 0;
