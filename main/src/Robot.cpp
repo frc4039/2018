@@ -57,7 +57,7 @@
 #define SERVO_HOME -90.f
 
 //#define AUX_PWM
-//#define PRACTICE_BOT
+#define PRACTICE_BOT
 //#define HAIL_MARY
 //#define STRETCH_ENABLED
 
@@ -284,12 +284,12 @@ public:
 		joyBlues = false;
 
 		//================Define Auto Paths===============
-		int zero[2] = {0, 0}; //starting point for all auto cases.
+		int zero[2] = {0, 0};
 
 		int centreLeftEnd[2] = {6400, -7000};
 		int cp1[2] = {0, -7000};
 		int cp2[2] = {6400, 0};
-		path_centreSwitchLeft = new PathCurve(zero, cp1, cp2, centreLeftEnd, CURVE_RES);
+		path_centreSwitchLeft = new PathCurve(zero, cp1, cp2, centreLeftEnd, 20);
 
 		int centreRightEnd[2] = {6400, 6400};
 		int cp3[2] = {0, 6400};
@@ -377,22 +377,27 @@ public:
 		int cp31[2] = {6000, -550}; //was 8000, -550
 		int cp31_2[2] = {6500, -4500};
 		int centreLeftScore[2] = {9500, -5000};
-		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, CURVE_RES/2);
-		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp282, cp31_2, centreLeftScore, CURVE_RES/2);
+		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, 40);
+		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp282, cp31_2, centreLeftScore, 40);
 
 		int pickupTwoCubeEnd[2] = {9000, -1000}; //was 9000, -1000
 		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 2);
 //TODO
+#ifdef PRACTICE_BOT
+		m_turnPID = new SimPID(0.55, 0, 3.0, 0.0, 0.5);
+#else
 		m_turnPID = new SimPID(0.3, 0, 1.0, 0.0, 0);
-//		m_turnPID = new SimPID(0.55, 0, 0.9, 0.0, 0.5);
-
+#endif
+		m_turnPID->setContinuousAngle(true);
 		m_drivePID = new SimPID(0.0008, 0, 0, 0, 200);
+#ifdef PRACTICE_BOT
+		m_drivePID->setMaxOutput(0.7);
+#else
 		m_drivePID->setMaxOutput(DEFAULT_MAXOUT);
+#endif
 		m_finalTurnPID = new SimPID(0.52, 0, 7.0, 0, 0.5);
 		m_finalTurnPID->setContinuousAngle(true);
-
-		m_turnPID->setContinuousAngle(true);
 
 		METRO = new PathFollower(500, PI/3, m_drivePID, m_turnPID, m_finalTurnPID);
 		METRO->setIsDegrees(true);
@@ -615,6 +620,9 @@ public:
 								m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 								m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 								m_conveyor->SetSpeed(0.f);
+#ifdef STRETCH_ENABLED
+								m_stretchIntake->Set(ControlMode::PercentOutput, 0.f);
+#endif
 							}
 						}
 						break;
@@ -688,6 +696,9 @@ public:
 								m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
 								m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
 								m_conveyor->SetSpeed(0.f);
+#ifdef STRETCH_ENABLED
+								m_stretchIntake->Set(ControlMode::PercentOutput, 0.f);
+#endif
 							}
 						}
 						break;
@@ -935,6 +946,9 @@ public:
 					m_gripperExtend->Set(false);
 					m_squareExtend->Set(false);
 					m_squareRetract->Set(true);
+#ifdef STRETCH_ENABLED
+					m_stretchExtend->Set(ControlMode::Position, 57100);
+#endif
 					if(autoTimer->Get() < 1.f && m_beamSensorLower->Get()) {
 						m_lowerIntakeL->SetSpeed(-1.f);
 						m_lowerIntakeR->SetSpeed(-1.f);
@@ -986,22 +1000,93 @@ public:
 					}
 				}
 				break;
-/*			case 8: //exchange from centre
-				switch(autoState) {
-				case 0:
-					METRO->initPath(path_exchange, PathForward, -180);
-					autoState++;
-					break;
-				case 1:
-					if(advancedAutoDrive())
+//TODO
+			case 8: //scale auto from right side
+				switch(plateColour[1]) {
+				case 'R':
+					switch(autoState) {
+					case 0:
+						METRO->initPath(path_exchange, PathForward, -20);
 						autoState++;
+						break;
+					case 1:
+						m_stretchExtend->Set(ControlMode::Position, 192000);
+						if(advancedAutoDrive()) {
+							autoState++;
+							autoTimer->Reset();
+							autoTimer->Start();
+						}
+						break;
+					case 2:
+						m_stretchIntake->Set(ControlMode::PercentOutput, 1.f);
+						m_gripperExtend->Set(true);
+						m_gripperRetract->Set(false);
+						if(autoTimer->Get() > 1.5f) {
+							autoState++;
+							autoTimer->Reset();
+					//		METRO->initPath(h, PathBackward, 90);
+						}
+						break;
+					case 3:
+						m_stretchExtend->Set(ControlMode::Position, 57100);
+						m_squareExtend->Set(true);
+						m_squareRetract->Set(false);
+						m_lowerIntakeL->SetSpeed(-0.8f);
+						m_lowerIntakeR->SetSpeed(-0.8f);
+						advancedAutoDrive();
+						if(!m_beamSensorLower->Get()) {
+							autoState++;
+							autoTimer->Reset();
+			//				METRO->initPath(h, PathForward, 180);
+						}
+						break;
+					case 4:
+						m_squareExtend->Set(false);
+						m_squareRetract->Set(true);
+						m_gripperExtend->Set(false);
+						m_gripperRetract->Set(true);
+						m_lowerIntakeL->SetSpeed(0.f);
+						m_lowerIntakeR->SetSpeed(0.f);
+						if(autoTimer->Get() < 0.3) {
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else if(autoTimer->Get() > 0.3 && autoTimer->Get() < 0.6) {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_gripperUp->Set(true);
+							m_gripperDown->Set(false);
+						}
+						else
+							autoState++;
+						break;
+					case 5:
+						if(autoTimer->Get() < 0.4) {
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_lowerIntakeL->SetSpeed(0.5f);
+							m_lowerIntakeR->SetSpeed(0.5f);
+						}
+
+						break;
+					}
 					break;
-				case 2:
-					m_lowerIntakeL->SetSpeed(-1.f);
-					m_lowerIntakeR->SetSpeed(1.f);
+				case 'L':
 					break;
 				}
-				break;*/
+				break;
 /*			case 9: //centre switch auto, then exchange
 				switch(autoState) {
 				case 0:
@@ -1066,12 +1151,15 @@ public:
 		m_conveyor->SetSpeed(0.f);
 		m_lowerIntakeL->SetSpeed(0.f);
 		m_lowerIntakeR->SetSpeed(0.f);
+
 		if(!twoCubeMode) {
-#ifndef HAIL_MARY
 			m_gripperDown->Set(true);
-#endif
 			m_gripperUp->Set(false);
+			stretchState = 0;
 		}
+		else
+			stretchState = 3;
+
 		gripperTimer->Reset();
 		gripperTimer->Start();
 		brownTimer->Reset();
@@ -1083,7 +1171,6 @@ public:
 		lowerIntakeState = 0;
 		joyBlues = false;
 		servoHomeAngle = 0.f;
-		stretchState = 0;
 	}
 
 	void TeleopPeriodic() {
@@ -1143,7 +1230,7 @@ public:
 
 	bool advancedAutoDrive() {
 		float leftSpeed, rightSpeed;
-		if(METRO->followPathByEnc(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw(), leftSpeed, rightSpeed) == 0){
+		if(METRO->followPathByEnc(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw(), leftSpeed, rightSpeed) == 0) {
 			m_LFMotor->SetSpeed(leftSpeed);
 			m_LBMotor->SetSpeed(leftSpeed);
 			m_RFMotor->SetSpeed(rightSpeed);
@@ -1198,7 +1285,7 @@ public:
 	void operateIntake() {
 		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
 		float intakeRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
-		float intakeDriveSpeed = limit2(-m_Joystick->GetY() - intakeRSpeed, 0.8, 0.2);
+		float intakeDriveSpeed = limit2(-m_Joystick->GetY() - intakeRSpeed, 0.8, 0.3);
 
 		switch(lowerIntakeState) {
 		case 0:
