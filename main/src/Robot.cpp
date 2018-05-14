@@ -286,7 +286,7 @@ public:
 		joyBlues = false;
 
 		autoFile1.open("autoFile.csv");
-		autoFile1 << "joyY,joyX,jb9,jb10,gpB,gpRT,gpPOV\n";
+		autoFile1 << "joyY,joyX,jb1,jb9,jb10,gpB,gpRT,gpPOV\n";
 		autoRecord = false;
 
 		//================Define Auto Paths===============
@@ -510,6 +510,7 @@ public:
 					playFile.open("autoFile.csv");
 					float autoJoyY;
 					float autoJoyX;
+					bool autoJoy1;
 					bool autoJoy9;
 					bool autoJoy10;
 					bool autoGameB;
@@ -526,6 +527,9 @@ public:
 
 						getline(playFile, line, ',');
 						autoJoyX = limit(std::stof(line));
+
+						getline(playFile, line, ',');
+						autoJoy1 = std::stoi(line);
 
 						getline(playFile, line, ',');
 						autoJoy9 = std::stoi(line);
@@ -549,6 +553,15 @@ public:
 					m_LBMotor->SetSpeed(-autoJoyY + autoJoyX);
 					m_RFMotor->SetSpeed(autoJoyY + autoJoyX);
 					m_RBMotor->SetSpeed(autoJoyY + autoJoyX);
+
+					if(autoJoy1) {
+						m_shiftLow->Set(true);
+						m_shiftHigh->Set(false);
+					}
+					else {
+						m_shiftLow->Set(false);
+						m_shiftHigh->Set(true);
+					}
 
 					if(autoJoy10) {
 						m_conveyor->SetSpeed(CONVEYOR_SPEED);
@@ -1292,7 +1305,7 @@ public:
 
 
 		if(autoRecord && recordTimer->Get() < 15.f)
-			autoFile1 << (std::to_string(m_Joystick->GetY()) + "," + std::to_string(m_Joystick->GetX()) + "," + std::to_string(m_Joystick->GetRawButton(9)) + "," + std::to_string(m_Joystick->GetRawButton(10)) + "," + std::to_string(m_GamepadOp->GetBButton()) + "," + std::to_string(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand)) + "," + std::to_string(m_GamepadOp->GetPOV(0)) + "\n");
+			autoFile1 << (std::to_string(m_Joystick->GetY()) + "," + std::to_string(m_Joystick->GetX()) + "," + std::to_string(m_Joystick->GetRawButton(1)) + "," + std::to_string(m_Joystick->GetRawButton(9)) + "," + std::to_string(m_Joystick->GetRawButton(10)) + "," + std::to_string(m_GamepadOp->GetBButton()) + "," + std::to_string(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand)) + "," + std::to_string(m_GamepadOp->GetPOV(0)) + "\n");
 		else
 			autoFile1.close();
 	}
