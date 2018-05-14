@@ -83,7 +83,7 @@ public:
 	Solenoid *m_shiftHigh;
 
 	int autoState, autoMode, autoDelay, conveyorState, indicatorState, lowerIntakeState, stretchState;
-	bool twoCubeMode, currentError, joyBlues;
+	bool twoCubeMode, currentError, joyBlues, autoRecord;
 	float currentGTime, switchShotSpeed, servoHomeAngle;
 
 	XboxController *m_GamepadOp;
@@ -117,7 +117,7 @@ public:
 	Timer *intakeTimer;
 	Timer *gripperTimer;
 	Timer *indicatorTimer;
-	Timer *brownTimer;
+	Timer *recordTimer;
 	Timer *stretchTimer;
 	int printDelay;
 
@@ -129,6 +129,8 @@ public:
 //	cs::UsbCamera cam1;
 
 	Relay *m_mangoRingLight;
+
+	std::ofstream autoFile1;
 
 	//====================Pathfollow Variables==================
 	PathFollower *METRO;
@@ -259,9 +261,9 @@ public:
 		stretchTimer->Reset();
 		stretchTimer->Stop();
 
-		brownTimer = new Timer();
-		brownTimer->Reset();
-		brownTimer->Stop();
+		recordTimer = new Timer();
+		recordTimer->Reset();
+		recordTimer->Stop();
 		printDelay = 0;
 
 //		driveState = 1;
@@ -282,6 +284,10 @@ public:
 //		autoRunTwelve = false;
 		currentError = false;
 		joyBlues = false;
+
+		autoFile1.open("autoFile.csv");
+		autoFile1 << "joyY,joyX,jb9,jb10,gpB,gpRT,gpPOV\n";
+		autoRecord = false;
 
 		//================Define Auto Paths===============
 		int zero[2] = {0, 0};
@@ -423,6 +429,15 @@ public:
 			}
 		}
 
+		if(m_Joystick->GetPOV(0) == 0) {
+			printf("RECORDING MODE ENABLED");
+			autoRecord = true;
+		}
+		else if(m_Joystick->GetPOV(0) == 180) {
+			printf("RECORDING MODE DISABLED");
+			autoRecord = false;
+		}
+
 		autoDelay = -5*(m_Joystick->GetRawAxis(3) - 1);
 
 		METRO->updatePos(m_leftEncoder->Get(), m_rightEncoder->Get(), nav->GetYaw());
@@ -486,58 +501,25 @@ public:
 
 		if(delayTimer->Get() > autoDelay) {
 			switch(autoMode) {
-/*			case 1: //start from centre, deploy cubes on sides of switch
-				switch(plateColour[0]) {
-				case 'L':
-					switch(autoState) {
-					case 0:
-						METRO->initPath(path_centreSwitchLeft, PathForward, 90);
-						autoState++;
-						break;
-					case 1:
-						if(advancedAutoDrive())
-							autoState++;
-						break;
-					case 2:
-						if(autoTimer->Get() > 1.f)
-							autoState++;
-						m_conveyor->Set(CONVEYOR_SPEED);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
-						METRO->initPath(path_backupEXLeft, PathBackward, 120);
-						break;
-					}
-					break;
-				case 'R':
-					switch(autoState) {
-					case 0:
-						METRO->initPath(path_centreSwitchRight, PathForward, -90);
-						autoState++;
-						break;
-					case 1:
-						if(advancedAutoDrive())
-							autoState++;
-						break;
-					case 2:
-						if(autoTimer->Get() > 1.f)
-							autoState++;
-						m_conveyor->Set(1.f);
-						m_upperIntakeL->Set(ControlMode::PercentOutput, -0.4f);
-						m_upperIntakeR->Set(ControlMode::PercentOutput, -0.4f);
-						METRO->initPath(path_backupEXRight, PathBackward, -120);
-						break;
-					}
-					break;
-				}
+			case 1: //recorded auto mode
 				switch(autoState) {
-				case 3:
-					m_conveyor->Set(0.f);
-					m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
-					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
-					if(autoRunTwelve)
-						autoMode = 12;
+				case 0:
+					std::ifstream playFile;
+					playFile.open("autoFile.csv");
+					float autoJoyY;
+					float autoJoyX;
+					bool autoJoy9;
+					bool autoJoy10;
+					bool autoGameB;
+					float autoGameRT;
+					int autoGamePOV;
+					autoState++;
+					break;
+				case 1:
+
+					break;
 				}
-				break;*/
+				break;
 			case 11:
 				switch(autoState) {
 				case 0:
@@ -1162,8 +1144,8 @@ public:
 
 		gripperTimer->Reset();
 		gripperTimer->Start();
-		brownTimer->Reset();
-		brownTimer->Start();
+		recordTimer->Reset();
+		recordTimer->Start();
 		stretchTimer->Reset();
 		stretchTimer->Start();
 		currentGTime = 0.f;
@@ -1198,6 +1180,10 @@ public:
 #ifdef STRETCH_ENABLED
 		operateStretch();
 #endif
+		if(autoRecord && recordTimer->Get() < 15.f)
+			autoFile1 << (std::to_string(m_Joystick->GetY()) + "," + std::to_string(m_Joystick->GetX()) + "," + std::to_string(m_Joystick->GetRawButton(9)) + "," + std::to_string(m_Joystick->GetRawButton(10)) + "," + std::to_string(m_GamepadOp->GetBButton()) + "," + std::to_string(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand)) + "," + std::to_string(m_GamepadOp->GetPOV(0)) + "\n");
+		else
+			autoFile1.close();
 	}
 
 	void arcadeShift() {
