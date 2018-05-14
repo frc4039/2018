@@ -500,10 +500,12 @@ public:
 		plateColour = DriverStation::GetInstance().GetGameSpecificMessage();
 
 		if(delayTimer->Get() > autoDelay) {
+//TODO
 			switch(autoMode) {
 			case 1: //recorded auto mode
 				switch(autoState) {
 				case 0:
+					std::string line;
 					std::ifstream playFile;
 					playFile.open("autoFile.csv");
 					float autoJoyY;
@@ -513,10 +515,116 @@ public:
 					bool autoGameB;
 					float autoGameRT;
 					int autoGamePOV;
+					int autoIntakeState = 0;
+					getline(playFile, line);
 					autoState++;
 					break;
 				case 1:
+					if (!playFile.eof()){
+						getline(playFile, line, ',');
+						autoJoyY = limit(std::stof(line));
 
+						getline(playFile, line, ',');
+						autoJoyX = limit(std::stof(line));
+
+						getline(playFile, line, ',');
+						autoJoy9 = std::stoi(line);
+
+						getline(playFile, line, ',');
+						autoJoy10 = std::stoi(line);
+
+						getline(playFile, line, ',');
+						autoGameB = std::stoi(line);
+
+						getline(playFile, line, ',');
+						autoGameRT = limit(std::stof(line));
+
+						getline(playFile, line, '\n');
+						autoGamePOV = std::stoi(line);
+					}
+					else
+						autoState++;
+
+					m_LFMotor->SetSpeed(-autoJoyY + autoJoyX);
+					m_LBMotor->SetSpeed(-autoJoyY + autoJoyX);
+					m_RFMotor->SetSpeed(autoJoyY + autoJoyX);
+					m_RBMotor->SetSpeed(autoJoyY + autoJoyX);
+
+					if(autoJoy10) {
+						m_conveyor->SetSpeed(CONVEYOR_SPEED);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, UPPER_SPEED);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, UPPER_SPEED);
+					}
+					else {
+						m_conveyor->SetSpeed(0.f);
+						m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+						m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+					}
+
+					if(autoGameB) {
+						m_gripperExtend->Set(true);
+						m_gripperRetract->Set(false);
+						if(gripperTimer->Get() > 0.5f) {
+							m_squareExtend->Set(true);
+							m_squareRetract->Set(false);
+						}
+					}
+					else {
+						m_gripperExtend->Set(false);
+						m_gripperRetract->Set(true);
+						m_squareExtend->Set(false);
+						m_squareRetract->Set(true);
+						gripperTimer->Reset();
+					}
+
+					if(autoGamePOV == GP_UP) {
+						m_gripperUp->Set(true);
+						m_gripperDown->Set(false);
+					}
+					else if(autoGamePOV == GP_DOWN) {
+						m_gripperUp->Set(false);
+						m_gripperDown->Set(true);
+					}
+
+					switch(autoIntakeState) {
+					case 0:
+						if(m_squareExtend->Get()) {
+							m_lowerIntakeL->SetSpeed(-limit2(-autoJoyY, 0.8, 0.3));
+							m_lowerIntakeR->SetSpeed(-limit2(-autoJoyY, 0.8, 0.3));
+						}
+						else {
+							m_lowerIntakeL->SetSpeed(-autoGameRT);
+							m_lowerIntakeR->SetSpeed(-autoGameRT);
+						}
+
+						if(autoJoy9)
+							autoIntakeState = 1;
+						break;
+					case 1:
+						if(m_gripperDown->Get()) {
+							m_lowerIntakeL->SetSpeed(1.f);
+							m_lowerIntakeR->SetSpeed(1.f);
+						}
+						else {
+							m_lowerIntakeL->SetSpeed(0.5f);
+							m_lowerIntakeR->SetSpeed(0.5f);
+						}
+
+						if(!autoJoy9)
+							autoIntakeState = 0;
+						break;
+					}
+					break;
+				case 2:
+					m_LFMotor->SetSpeed(0.f);
+					m_LBMotor->SetSpeed(0.f);
+					m_RFMotor->SetSpeed(0.f);
+					m_RBMotor->SetSpeed(0.f);
+					m_upperIntakeL->Set(ControlMode::PercentOutput, 0.f);
+					m_upperIntakeR->Set(ControlMode::PercentOutput, 0.f);
+					m_conveyor->SetSpeed(0.f);
+					m_lowerIntakeL->SetSpeed(0.f);
+					m_lowerIntakeR->SetSpeed(0.f);
 					break;
 				}
 				break;
@@ -1180,6 +1288,9 @@ public:
 #ifdef STRETCH_ENABLED
 		operateStretch();
 #endif
+
+
+
 		if(autoRecord && recordTimer->Get() < 15.f)
 			autoFile1 << (std::to_string(m_Joystick->GetY()) + "," + std::to_string(m_Joystick->GetX()) + "," + std::to_string(m_Joystick->GetRawButton(9)) + "," + std::to_string(m_Joystick->GetRawButton(10)) + "," + std::to_string(m_GamepadOp->GetBButton()) + "," + std::to_string(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand)) + "," + std::to_string(m_GamepadOp->GetPOV(0)) + "\n");
 		else
@@ -1271,7 +1382,7 @@ public:
 	void operateIntake() {
 		float intakeFSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kLeftHand));
 		float intakeRSpeed = limit(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand));
-		float intakeDriveSpeed = limit2(-m_Joystick->GetY() - intakeRSpeed, 0.8, 0.3);
+		float intakeDriveSpeed = limit2(-m_Joystick->GetY(), 0.8, 0.3);
 
 		switch(lowerIntakeState) {
 		case 0:
