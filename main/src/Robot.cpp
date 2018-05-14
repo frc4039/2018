@@ -57,7 +57,7 @@
 #define SERVO_HOME -90.f
 
 //#define AUX_PWM
-#define PRACTICE_BOT
+//#define PRACTICE_BOT
 //#define HAIL_MARY
 //#define STRETCH_ENABLED
 
@@ -364,9 +364,9 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
-		int backupTwoCubeEnd[2] = {4500, -500}; //was 4500, -2000
+		int backupTwoCubeEnd[2] = {4500, -1000}; //was 4500, -2000
 		int cp28[2] = {5500, 4000}; //was 4000, 5000
-		int cp29[2] = {6000, -1000}; //was 6000, -1000
+		int cp29[2] = {6000, -1500}; //was 6000, -1000
 		int cp282[2] = {6000, 000};
 		int cp292[2] = {6500, 3000};
 		int centreRightScore[2] = {9500, 3500};
@@ -375,15 +375,15 @@ public:
 
 		int cp30[2] = {6000, -6000}; //was 4000, -6000
 		int cp31[2] = {6000, -550}; //was 8000, -550
-		int cp31_2[2] = {6500, -4500};
-		int centreLeftScore[2] = {9500, -5000};
+		int cp31_2[2] = {6500, -5500}; //was 6500, -4500
+		int centreLeftScore[2] = {9500, -6000}; //was 9500, -5000
 		path_twoCubeBackupLeft = new PathCurve(centreLeftEnd2, cp30, cp31, backupTwoCubeEnd, 40);
 		path_twoCubeShootLeft = new PathCurve(backupTwoCubeEnd, cp282, cp31_2, centreLeftScore, 40);
 
 		int pickupTwoCubeEnd[2] = {9000, -1000}; //was 9000, -1000
 		path_twoCubePickup = new PathLine(backupTwoCubeEnd, pickupTwoCubeEnd, 4);
 		path_twoCubeBackupLine = new PathLine(pickupTwoCubeEnd, backupTwoCubeEnd, 2);
-//TODO
+
 #ifdef PRACTICE_BOT
 		m_turnPID = new SimPID(0.55, 0, 3.0, 0.0, 0.5);
 #else
@@ -1191,7 +1191,7 @@ public:
 		operateGripperPneumatics();
 		operateConveyor();
 #ifndef STRETCH_ENABLED
-		applesServo();
+	//	applesServo();
 #endif
 //		calibrateServo();
 		indicateCube();
