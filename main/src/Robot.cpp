@@ -59,7 +59,11 @@
 //#define AUX_PWM
 //#define PRACTICE_BOT
 //#define HAIL_MARY
-//#define STRETCH_ENABLED
+#define STRETCH_ENABLED
+
+#define STRETCH_UP 642000
+#define STRETCH_TILT 149000
+#define STRETCH_HALF
 
 class Robot: public frc::IterativeRobot {
 public:
@@ -131,6 +135,17 @@ public:
 	Relay *m_mangoRingLight;
 
 	std::ofstream autoFile1;
+	std::string line;
+	std::ifstream playFile;
+	float autoJoyY;
+	float autoJoyX;
+	bool autoJoy1;
+	bool autoJoy9;
+	bool autoJoy10;
+	bool autoGameB;
+	float autoGameRT;
+	int autoGamePOV;
+	int autoIntakeState;
 
 	//====================Pathfollow Variables==================
 	PathFollower *METRO;
@@ -149,6 +164,8 @@ public:
 	Path *path_backupEXRight, *path_backupEXLeft, *path_exchangeRight, *path_exchangeLeft;
 	//two cube auto
 	Path *path_twoCubeBackupRight, *path_twoCubeBackupLeft, *path_twoCubePickup, *path_twoCubeBackupLine, *path_twoCubeShootRight, *path_twoCubeShootLeft;
+	//Scale auto
+	Path *path_scaleRight, *path_scaleLeft;
 
 /*	static void VisionThread()
     {
@@ -285,8 +302,8 @@ public:
 		currentError = false;
 		joyBlues = false;
 
-		autoFile1.open("autoFile.csv");
-		autoFile1 << "joyY,joyX,jb1,jb9,jb10,gpB,gpRT,gpPOV\n";
+		autoFile1.open("/home/lvuser/autoFile.csv");
+//		autoFile1 << "joyY,joyX,jb1,jb9,jb10,gpB,gpRT,gpPOV\n";
 		autoRecord = false;
 
 		//================Define Auto Paths===============
@@ -370,6 +387,11 @@ public:
 		int cp25[2] = {7,8};
 		path_exchangeRight = new PathCurve(backupEXRightEnd, cp24, cp25, exchangeRight, CURVE_RES);
 
+		int scaleRightEnd[2] = {23000, -1400};
+		int cp40[2] = {5000, 0};
+		int cp39[2] = {15000, 0};
+		path_scaleRight = new PathCurve(zero, cp40, cp39, scaleRightEnd, 20);
+
 		int backupTwoCubeEnd[2] = {4500, -1000}; //was 4500, -2000
 		int cp28[2] = {5500, 4000}; //was 4000, 5000
 		int cp29[2] = {6000, -1500}; //was 6000, -1000
@@ -430,11 +452,11 @@ public:
 		}
 
 		if(m_Joystick->GetPOV(0) == 0) {
-			printf("RECORDING MODE ENABLED");
+			printf("RECORDING MODE ENABLED\n");
 			autoRecord = true;
 		}
 		else if(m_Joystick->GetPOV(0) == 180) {
-			printf("RECORDING MODE DISABLED");
+			printf("RECORDING MODE DISABLED\n");
 			autoRecord = false;
 		}
 
@@ -471,7 +493,8 @@ public:
 		m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 //		m_stretchL->Set(ControlMode::PercentOutput, 0.f);
 	//	m_stretchR->Set(ControlMode::PercentOutput, 0.f);
-#ifndef HAIL_MARY
+
+		#ifndef HAIL_MARY
 		m_gripperDown->Set(true);
 #endif
 		stretchTimer->Start();
@@ -505,19 +528,17 @@ public:
 			case 1: //recorded auto mode
 				switch(autoState) {
 				case 0:
-					std::string line;
-					std::ifstream playFile;
-					playFile.open("autoFile.csv");
-					float autoJoyY;
-					float autoJoyX;
-					bool autoJoy1;
-					bool autoJoy9;
-					bool autoJoy10;
-					bool autoGameB;
-					float autoGameRT;
-					int autoGamePOV;
-					int autoIntakeState = 0;
-					getline(playFile, line);
+					autoIntakeState = 0;
+					autoJoyY = 0.f;
+					autoJoyX = 0.f;
+					autoJoy1 = false;
+					autoJoy9 = false;
+					autoJoy10 = false;
+					autoGameB = false;
+					autoGameRT = 0.f;
+					autoGamePOV = NULL;
+					playFile.open("/home/lvuser/autoFile.csv");
+//					getline(playFile, line);
 					autoState++;
 					break;
 				case 1:
@@ -549,10 +570,10 @@ public:
 					else
 						autoState++;
 
-					m_LFMotor->SetSpeed(-autoJoyY + autoJoyX);
-					m_LBMotor->SetSpeed(-autoJoyY + autoJoyX);
-					m_RFMotor->SetSpeed(autoJoyY + autoJoyX);
-					m_RBMotor->SetSpeed(autoJoyY + autoJoyX);
+					m_LFMotor->SetSpeed(autoJoyY - autoJoyX);
+					m_LBMotor->SetSpeed(autoJoyY - autoJoyX);
+					m_RFMotor->SetSpeed(-autoJoyY - autoJoyX);
+					m_RBMotor->SetSpeed(-autoJoyY - autoJoyX);
 
 					if(autoJoy1) {
 						m_shiftLow->Set(true);
@@ -638,6 +659,7 @@ public:
 					m_conveyor->SetSpeed(0.f);
 					m_lowerIntakeL->SetSpeed(0.f);
 					m_lowerIntakeR->SetSpeed(0.f);
+					playFile.close();
 					break;
 				}
 				break;
@@ -1050,7 +1072,7 @@ public:
 					m_squareExtend->Set(false);
 					m_squareRetract->Set(true);
 #ifdef STRETCH_ENABLED
-					m_stretchExtend->Set(ControlMode::Position, 57100);
+					m_stretchExtend->Set(ControlMode::Position, STRETCH_TILT);
 #endif
 					if(autoTimer->Get() < 1.f && m_beamSensorLower->Get()) {
 						m_lowerIntakeL->SetSpeed(-1.f);
@@ -1103,54 +1125,55 @@ public:
 					}
 				}
 				break;
-//TODO
+//TODO encoder values
 			case 8: //scale auto from right side
 				switch(plateColour[1]) {
-				case 'R':
+				case 'R': //right side
 					switch(autoState) {
 					case 0:
-						METRO->initPath(path_exchange, PathForward, -20);
-						autoState++;
+						METRO->initPath(path_exchange, PathForward, -20); //who knows
+						autoState++; //next case?
 						break;
 					case 1:
-						m_stretchExtend->Set(ControlMode::Position, 192000);
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_UP); //stretch extends
 						if(advancedAutoDrive()) {
-							autoState++;
-							autoTimer->Reset();
-							autoTimer->Start();
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
+							autoTimer->Start(); //start timer
 						}
 						break;
 					case 2:
-						m_stretchIntake->Set(ControlMode::PercentOutput, 1.f);
-						m_gripperExtend->Set(true);
+						m_stretchIntake->Set(ControlMode::PercentOutput, 1.f); //run stretch intake
+						m_gripperExtend->Set(true); //gripper is extended
 						m_gripperRetract->Set(false);
-						if(autoTimer->Get() > 1.5f) {
-							autoState++;
-							autoTimer->Reset();
+						if(autoTimer->Get() > 1.5f) { //----------------only if doing switch stuff-------------------
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
 					//		METRO->initPath(h, PathBackward, 90);
 						}
 						break;
+//--------------------------------------------Switch part------------------------------------------------------------
 					case 3:
-						m_stretchExtend->Set(ControlMode::Position, 57100);
-						m_squareExtend->Set(true);
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_TILT); //drop stretch halfway
+						m_squareExtend->Set(true); //square is out
 						m_squareRetract->Set(false);
-						m_lowerIntakeL->SetSpeed(-0.8f);
+						m_lowerIntakeL->SetSpeed(-0.8f); //intake at 80%
 						m_lowerIntakeR->SetSpeed(-0.8f);
 						advancedAutoDrive();
-						if(!m_beamSensorLower->Get()) {
+						if(!m_beamSensorLower->Get()) { //if on then switch state
 							autoState++;
 							autoTimer->Reset();
 			//				METRO->initPath(h, PathForward, 180);
 						}
 						break;
 					case 4:
-						m_squareExtend->Set(false);
+						m_squareExtend->Set(false); //square is in
 						m_squareRetract->Set(true);
-						m_gripperExtend->Set(false);
+						m_gripperExtend->Set(false); //gripper is in
 						m_gripperRetract->Set(true);
-						m_lowerIntakeL->SetSpeed(0.f);
+						m_lowerIntakeL->SetSpeed(0.f); //intake off
 						m_lowerIntakeR->SetSpeed(0.f);
-						if(autoTimer->Get() < 0.3) {
+						if(autoTimer->Get() < 0.3) { //
 							m_LFMotor->SetSpeed(0.5f);
 							m_LBMotor->SetSpeed(0.5f);
 							m_RFMotor->SetSpeed(-0.5f);
@@ -1187,6 +1210,252 @@ public:
 					}
 					break;
 				case 'L':
+					switch(autoState) {
+					case 0:
+						METRO->initPath(path_exchange, PathForward, -20); //who knows
+						autoState++; //next case?
+						break;
+					case 1:
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_UP); //stretch extends
+						if(advancedAutoDrive()) {
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
+							autoTimer->Start(); //start timer
+						}
+						break;
+					case 2:
+						m_stretchIntake->Set(ControlMode::PercentOutput, 1.f); //run stretch intake
+						m_gripperExtend->Set(true); //gripper is extended
+						m_gripperRetract->Set(false);
+						if(autoTimer->Get() > 1.5f) { //----------------only if doing switch stuff-------------------
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
+					//		METRO->initPath(h, PathBackward, 90);
+						}
+						break;
+					//--------------------------------------------Switch part------------------------------------------------------------
+					case 3:
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_TILT); //drop stretch halfway
+						m_squareExtend->Set(true); //square is out
+						m_squareRetract->Set(false);
+						m_lowerIntakeL->SetSpeed(-0.8f); //intake at 80%
+						m_lowerIntakeR->SetSpeed(-0.8f);
+						advancedAutoDrive();
+						if(!m_beamSensorLower->Get()) { //if on then switch state
+							autoState++;
+							autoTimer->Reset();
+			//				METRO->initPath(h, PathForward, 180);
+						}
+						break;
+					case 4:
+						m_squareExtend->Set(false); //square is in
+						m_squareRetract->Set(true);
+						m_gripperExtend->Set(false); //gripper is in
+						m_gripperRetract->Set(true);
+						m_lowerIntakeL->SetSpeed(0.f); //intake off
+						m_lowerIntakeR->SetSpeed(0.f);
+						if(autoTimer->Get() < 0.3) { //
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else if(autoTimer->Get() > 0.3 && autoTimer->Get() < 0.6) {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_gripperUp->Set(true);
+							m_gripperDown->Set(false);
+						}
+						else
+							autoState++;
+						break;
+					case 5:
+						if(autoTimer->Get() < 0.4) {
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_lowerIntakeL->SetSpeed(0.5f);
+							m_lowerIntakeR->SetSpeed(0.5f);
+						}
+
+						break;
+					}
+					break;
+				}
+				break;
+//TODO encoder values and starting position
+			case 9: //scale auto from left side
+				switch(plateColour[1]) {
+				case 'R': //right side
+					switch(autoState) {
+					case 0:
+						METRO->initPath(path_exchange, PathForward, -20); //who knows
+						autoState++; //next case?
+						break;
+					case 1:
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_UP); //stretch extends
+						if(advancedAutoDrive()) {
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
+							autoTimer->Start(); //start timer
+						}
+						break;
+					case 2:
+						m_stretchIntake->Set(ControlMode::PercentOutput, 1.f); //run stretch intake
+						m_gripperExtend->Set(true); //gripper is extended
+						m_gripperRetract->Set(false);
+						if(autoTimer->Get() > 1.5f) { //----------------only if doing switch stuff-------------------
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
+					//		METRO->initPath(h, PathBackward, 90);
+						}
+						break;
+//--------------------------------------------Switch part------------------------------------------------------------
+					case 3:
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_TILT); //drop stretch halfway
+						m_squareExtend->Set(true); //square is out
+						m_squareRetract->Set(false);
+						m_lowerIntakeL->SetSpeed(-0.8f); //intake at 80%
+						m_lowerIntakeR->SetSpeed(-0.8f);
+						advancedAutoDrive();
+						if(!m_beamSensorLower->Get()) { //if on then switch state
+							autoState++;
+							autoTimer->Reset();
+			//				METRO->initPath(h, PathForward, 180);
+						}
+						break;
+					case 4:
+						m_squareExtend->Set(false); //square is in
+						m_squareRetract->Set(true);
+						m_gripperExtend->Set(false); //gripper is in
+						m_gripperRetract->Set(true);
+						m_lowerIntakeL->SetSpeed(0.f); //intake off
+						m_lowerIntakeR->SetSpeed(0.f);
+						if(autoTimer->Get() < 0.3) { //
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else if(autoTimer->Get() > 0.3 && autoTimer->Get() < 0.6) {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_gripperUp->Set(true);
+							m_gripperDown->Set(false);
+						}
+						else
+							autoState++;
+						break;
+					case 5:
+						if(autoTimer->Get() < 0.4) {
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_lowerIntakeL->SetSpeed(0.5f);
+							m_lowerIntakeR->SetSpeed(0.5f);
+						}
+
+						break;
+					}
+					break;
+				case 'L':
+					switch(autoState) {
+					case 0:
+						METRO->initPath(path_exchange, PathForward, -20); //who knows
+						autoState++; //next case?
+						break;
+					case 1:
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_UP); //stretch extends
+						if(advancedAutoDrive()) {
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
+							autoTimer->Start(); //start timer
+						}
+						break;
+					case 2:
+						m_stretchIntake->Set(ControlMode::PercentOutput, 1.f); //run stretch intake
+						m_gripperExtend->Set(true); //gripper is extended
+						m_gripperRetract->Set(false);
+						if(autoTimer->Get() > 1.5f) { //----------------only if doing switch stuff-------------------
+							autoState++; //next case
+							autoTimer->Reset(); //reset timer
+					//		METRO->initPath(h, PathBackward, 90);
+						}
+						break;
+					//--------------------------------------------Switch part------------------------------------------------------------
+					case 3:
+						m_stretchExtend->Set(ControlMode::Position, STRETCH_TILT); //drop stretch halfway
+						m_squareExtend->Set(true); //square is out
+						m_squareRetract->Set(false);
+						m_lowerIntakeL->SetSpeed(-0.8f); //intake at 80%
+						m_lowerIntakeR->SetSpeed(-0.8f);
+						advancedAutoDrive();
+						if(!m_beamSensorLower->Get()) { //if on then switch state
+							autoState++;
+							autoTimer->Reset();
+			//				METRO->initPath(h, PathForward, 180);
+						}
+						break;
+					case 4:
+						m_squareExtend->Set(false); //square is in
+						m_squareRetract->Set(true);
+						m_gripperExtend->Set(false); //gripper is in
+						m_gripperRetract->Set(true);
+						m_lowerIntakeL->SetSpeed(0.f); //intake off
+						m_lowerIntakeR->SetSpeed(0.f);
+						if(autoTimer->Get() < 0.3) { //
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else if(autoTimer->Get() > 0.3 && autoTimer->Get() < 0.6) {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_gripperUp->Set(true);
+							m_gripperDown->Set(false);
+						}
+						else
+							autoState++;
+						break;
+					case 5:
+						if(autoTimer->Get() < 0.4) {
+							m_LFMotor->SetSpeed(0.5f);
+							m_LBMotor->SetSpeed(0.5f);
+							m_RFMotor->SetSpeed(-0.5f);
+							m_RBMotor->SetSpeed(-0.5f);
+						}
+						else {
+							m_LFMotor->SetSpeed(0.f);
+							m_LBMotor->SetSpeed(0.f);
+							m_RFMotor->SetSpeed(0.f);
+							m_RBMotor->SetSpeed(0.f);
+							m_lowerIntakeL->SetSpeed(0.5f);
+							m_lowerIntakeR->SetSpeed(0.5f);
+						}
+
+						break;
+					}
 					break;
 				}
 				break;
@@ -1304,10 +1573,16 @@ public:
 
 
 
-		if(autoRecord && recordTimer->Get() < 15.f)
+		if(autoRecord) {
+			printf("RECORDING\n");
 			autoFile1 << (std::to_string(m_Joystick->GetY()) + "," + std::to_string(m_Joystick->GetX()) + "," + std::to_string(m_Joystick->GetRawButton(1)) + "," + std::to_string(m_Joystick->GetRawButton(9)) + "," + std::to_string(m_Joystick->GetRawButton(10)) + "," + std::to_string(m_GamepadOp->GetBButton()) + "," + std::to_string(m_GamepadOp->GetTriggerAxis(XboxController::kRightHand)) + "," + std::to_string(m_GamepadOp->GetPOV(0)) + "\n");
-		else
+		}
+
+		if(m_Joystick->GetRawButton(8) || !autoRecord) {
+			autoFile1 << "0,0,0,0,0,0,0,-1";
+			autoRecord = false;
 			autoFile1.close();
+		}
 	}
 
 	void arcadeShift() {
@@ -1461,7 +1736,7 @@ public:
 			}
 			break;
 		case 1:
-			m_stretchExtend->Set(ControlMode::Position, 192000);
+			m_stretchExtend->Set(ControlMode::Position, STRETCH_UP);
 			if(m_GamepadOp->GetBackButton())
 				stretchState++;
 			break;
@@ -1475,7 +1750,7 @@ public:
 			break;
 		case 3:
 			if(stretchTimer->Get() < 2.0)
-				m_stretchExtend->Set(ControlMode::Position, 57100);
+				m_stretchExtend->Set(ControlMode::Position, STRETCH_TILT);
 			else
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 
@@ -1491,7 +1766,7 @@ public:
 			break;
 		case 4:
 			if(stretchTimer->Get() < 2.0)
-				m_stretchExtend->Set(ControlMode::Position, 57100);
+				m_stretchExtend->Set(ControlMode::Position, STRETCH_TILT);
 			else {
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 				stretchState = 0;
