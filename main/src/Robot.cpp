@@ -359,7 +359,7 @@ public:
 
 		int crossAutoEnd[2] = {13000, 0};
 		path_crossAutoLine = new PathLine(zero, crossAutoEnd, 2);
-		int crossNullEnd[2] = {25000, 0};
+		int crossNullEnd[2] = {13000, 0};
 		path_crossNullZone = new PathLine(zero, crossNullEnd, 2);
 
 		int exchangeEnd[2] = {0, -800};
@@ -1563,7 +1563,7 @@ public:
 		operateGripperPneumatics();
 		operateConveyor();
 #ifndef STRETCH_ENABLED
-	//	applesServo();
+		applesServo();
 #endif
 //		calibrateServo();
 		indicateCube();
@@ -1741,11 +1741,9 @@ public:
 				stretchState++;
 			break;
 		case 2:
-			if(m_stretchExtend->GetSelectedSensorPosition(0) >= 120000)
+			if(m_stretchExtend->GetSelectedSensorPosition(0) >= 5000)
 				m_stretchExtend->Set(ControlMode::PercentOutput, -0.1f);
-			else if(m_stretchExtend->GetSelectedSensorPosition(0) < 120000 && m_stretchExtend->GetSelectedSensorPosition(0) > 60000)
-				m_stretchExtend->Set(ControlMode::PercentOutput, 0.2f);
-			else if(m_GamepadOp->GetRawButton(GP_R) && m_GamepadOp->GetRawButton(GP_L))
+			else if((m_GamepadOp->GetRawButton(GP_R) && m_GamepadOp->GetRawButton(GP_L)) || m_stretchExtend->GetSelectedSensorPosition(0) < 5000)
 				m_stretchExtend->Set(ControlMode::PercentOutput, 0.f);
 			break;
 		case 3:
